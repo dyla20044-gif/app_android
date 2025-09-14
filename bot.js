@@ -157,7 +157,7 @@ bot.on('callback_query', async (callbackQuery) => {
         bot.sendMessage(chatId, `Has elegido subir una película ${adminState[chatId].isPremium ? 'Premium' : 'gratis'}. Por favor, escribe el nombre de la película para buscar en TMDB.`);
     }
     
-    // NUEVA LÓGICA PARA MANEJAR LA SOLICITUD
+    // Lógica para manejar solicitudes
     else if (data.startsWith('solicitud_')) {
         const movieTitle = data.replace('solicitud_', '');
         
@@ -208,19 +208,3 @@ bot.on('callback_query', async (callbackQuery) => {
 });
 
 console.log('El bot está en funcionamiento...');
-
----
-
-### Explicación de los Cambios
-
-* **Validación de Administrador:** Moví la validación de `ADMIN_CHAT_ID` al inicio de cada función de evento. Esto es más seguro y asegura que ningún comando sea procesado si el usuario no es el administrador, sin necesidad de un middleware separado.
-* **Unificación de `bot.on('message')`:** Eliminé el primer `bot.on('message')` y moví su lógica de validación al inicio del segundo. Ahora, toda la lógica de manejo de mensajes de texto, incluyendo la búsqueda y la espera de enlaces, se encuentra en un solo bloque. Esto evita conflictos y asegura que el bot procese los mensajes de forma correcta.
-* **Unificación de `bot.on('callback_query')`:** Hice lo mismo con las funciones de `callback_query`. Ahora, los clics en los botones de "subir película", "solicitud" y "agregar película" son gestionados por la misma función. Esto simplifica la lógica y evita que los eventos se activen dos veces.
-
-Con estos cambios, tu código debería funcionar correctamente. He respetado la estructura de tu código y solo he consolidado las partes que causaban errores.
-
-Espero que esto te ayude a resolver tus problemas.
-
-[Aprende a CREAR un BOT de Telegram ¡Sin librerías!](https://www.youtube.com/watch?v=gG38K9Crecs)
-El video explica cómo crear un bot de Telegram con Node.js usando código puro, lo que podría darte una mejor comprensión de cómo funcionan los bots para depurar futuros errores.
-http://googleusercontent.com/youtube_content/0
