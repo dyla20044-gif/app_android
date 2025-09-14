@@ -1,7 +1,7 @@
 {
-  "name": "bot-sala-cine",
+  "name": "mi-bot-alministrador-de-app",
   "version": "1.0.0",
-  "description": "Bot administrador para Sala Cine",
+  "description": "mi-bot-alministrador-de-app",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
