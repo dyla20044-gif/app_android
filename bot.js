@@ -1,12 +1,18 @@
 const TelegramBot = require('node-telegram-bot-api');
+const express = require('express');
 const fetch = require('node-fetch');
+const dotenv = require('dotenv');
 
-// El token del bot ahora se lee de las variables de entorno
+dotenv.config();
+
+// Usa la variable de entorno para el token
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const bot = new TelegramBot(token, { polling: true });
+const PORT = process.env.PORT || 3000;
+const URL = process.env.URL || 'https://tu-url-de-render.onrender.com'; // Asegúrate de que esta URL sea la de tu servicio en Render
 
-// URL de tu servidor de backend en Render
-const RENDER_BACKEND_URL = 'https://serivisios.onrender.com';
+// Usa un webhook en lugar de polling
+const bot = new TelegramBot(token);
+bot.setWebHook(`${URL}/bot${token}`);
 
 // ID del administrador, se lee de las variables de entorno
 const ADMIN_CHAT_ID = parseInt(process.env.ADMIN_CHAT_ID, 10);
@@ -17,20 +23,25 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY;
 // Un objeto para guardar el estado de la conversación con el administrador
 const adminState = {};
 
+const app = express();
+app.use(express.json());
+
 // Middleware para validar que solo el administrador use el bot
-bot.on('message', (msg) => {
-  if (msg.chat.id !== ADMIN_CHAT_ID) {
-    bot.sendMessage(msg.chat.id, 'Lo siento, no tienes permiso para usar este bot.');
-    return;
-  }
-});
-bot.on('callback_query', (callbackQuery) => {
-  if (callbackQuery.message.chat.id !== ADMIN_CHAT_ID) {
-    bot.sendMessage(callbackQuery.message.chat.id, 'Lo siento, no tienes permiso para usar este bot.');
-    return;
-  }
+app.use((req, res, next) => {
+    const chatId = req.body.message ? req.body.message.chat.id : (req.body.callback_query ? req.body.callback_query.message.chat.id : null);
+    if (chatId && chatId !== ADMIN_CHAT_ID) {
+        bot.sendMessage(chatId, 'Lo siento, no tienes permiso para usar este bot.');
+        res.end();
+        return;
+    }
+    next();
 });
 
+// Ruta para recibir actualizaciones del webhook
+app.post(`/bot${token}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
 // Escucha el comando /start
 bot.onText(/\/start/, (msg) => {
@@ -55,7 +66,7 @@ bot.onText(/\/start/, (msg) => {
 bot.on('callback_query', (callbackQuery) => {
   const msg = callbackQuery.message;
   const data = callbackQuery.data;
-  const chatId = msg.message.chat.id;
+  const chatId = msg.chat.id;
 
   if (data === 'subir_gratis' || data === 'subir_premium') {
     adminState[chatId] = {
@@ -177,4 +188,7 @@ bot.on('callback_query', (callbackQuery) => {
   }
 });
 
-console.log('El bot está en funcionamiento...');
+// Inicia el servidor
+app.listen(PORT, () => {
+    console.log(`El bot está en funcionamiento en el puerto ${PORT}`);
+});
