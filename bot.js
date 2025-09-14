@@ -1,18 +1,36 @@
 const TelegramBot = require('node-telegram-bot-api');
 const fetch = require('node-fetch');
-const dotenv = require('dotenv');
 
-dotenv.config();
-
-// Usa la variable de entorno para el token
+// El token del bot ahora se lee de las variables de entorno
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
 // URL de tu servidor de backend en Render
 const RENDER_BACKEND_URL = 'https://serivisios.onrender.com';
 
+// ID del administrador, se lee de las variables de entorno
+const ADMIN_CHAT_ID = parseInt(process.env.ADMIN_CHAT_ID, 10);
+
+// Clave de la API de TMDB, se lee de las variables de entorno
+const TMDB_API_KEY = process.env.TMDB_API_KEY;
+
 // Un objeto para guardar el estado de la conversación con el administrador
 const adminState = {};
+
+// Middleware para validar que solo el administrador use el bot
+bot.on('message', (msg) => {
+  if (msg.chat.id !== ADMIN_CHAT_ID) {
+    bot.sendMessage(msg.chat.id, 'Lo siento, no tienes permiso para usar este bot.');
+    return;
+  }
+});
+bot.on('callback_query', (callbackQuery) => {
+  if (callbackQuery.message.chat.id !== ADMIN_CHAT_ID) {
+    bot.sendMessage(callbackQuery.message.chat.id, 'Lo siento, no tienes permiso para usar este bot.');
+    return;
+  }
+});
+
 
 // Escucha el comando /start
 bot.onText(/\/start/, (msg) => {
@@ -60,7 +78,6 @@ bot.on('message', async (msg) => {
   
   if (adminState[chatId] && adminState[chatId].step === 'search') {
     try {
-      const TMDB_API_KEY = '5eb8461b85d0d88c46d77cfe5436291f';
       const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(userText)}&language=es-ES`;
 
       const response = await fetch(searchUrl);
