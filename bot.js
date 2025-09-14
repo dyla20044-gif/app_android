@@ -6,12 +6,21 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(token);
 
 const RENDER_BACKEND_URL = 'https://serivisios.onrender.com';
 const ADMIN_CHAT_ID = parseInt(process.env.ADMIN_CHAT_ID, 10);
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
+
 const adminState = {};
+
+const app = express();
+app.use(express.json());
+
+app.post(`/bot${token}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
 bot.on('message', (msg) => {
   if (msg.chat.id !== ADMIN_CHAT_ID) {
@@ -19,6 +28,7 @@ bot.on('message', (msg) => {
     return;
   }
 });
+
 bot.on('callback_query', (callbackQuery) => {
   if (callbackQuery.message.chat.id !== ADMIN_CHAT_ID) {
     bot.sendMessage(callbackQuery.message.chat.id, 'Lo siento, no tienes permiso para usar este bot.');
@@ -53,6 +63,7 @@ bot.on('callback_query', async (callbackQuery) => {
     bot.sendMessage(chatId, `Has elegido subir una película ${adminState[chatId].isPremium ? 'Premium' : 'gratis'}. Por favor, escribe el nombre de la película para buscar en TMDB.`);
   } else if (data.startsWith('solicitud_')) {
       const movieTitle = data.replace('solicitud_', '');
+      
       const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(movieTitle)}&language=es-ES`;
       const response = await fetch(searchUrl);
       const searchData = await response.json();
@@ -162,4 +173,16 @@ bot.on('message', async (msg) => {
       adminState[chatId] = { step: 'menu' };
     }
   }
+});
+
+const app = express();
+app.use(express.json());
+
+app.post(`/bot${token}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
+app.listen(PORT, () => {
+    console.log(`El bot está en funcionamiento en el puerto ${PORT}`);
 });
