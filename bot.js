@@ -5,42 +5,39 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Usa la variable de entorno para el token
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const bot = new TelegramBot(token, { polling: true });
+const PORT = process.env.PORT || 3000;
+const URL = process.env.URL || 'https://mi-bot-alministrador-de-app.onrender.com';
 
-// URL de tu servidor de backend en Render
-const RENDER_BACKEND_URL = 'https://serivisios.onrender.com';
+const bot = new TelegramBot(token);
+bot.setWebHook(`${URL}/bot${token}`);
 
-// ID del administrador, se lee de las variables de entorno
 const ADMIN_CHAT_ID = parseInt(process.env.ADMIN_CHAT_ID, 10);
-
-// Clave de la API de TMDB, se lee de las variables de entorno
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 
-// Un objeto para guardar el estado de la conversación con el administrador
 const adminState = {};
 
-// Middleware para validar que solo el administrador use el bot
-bot.on('message', (msg) => {
-  if (msg.chat.id !== ADMIN_CHAT_ID) {
-    bot.sendMessage(msg.chat.id, 'Lo siento, no tienes permiso para usar este bot.');
-    return;
-  }
-});
-bot.on('callback_query', (callbackQuery) => {
-  if (callbackQuery.message.chat.id !== ADMIN_CHAT_ID) {
-    bot.sendMessage(callbackQuery.message.chat.id, 'Lo siento, no tienes permiso para usar este bot.');
-    return;
-  }
+const app = express();
+app.use(express.json());
+
+app.use((req, res, next) => {
+    const chatId = req.body.message ? req.body.message.chat.id : (req.body.callback_query ? req.body.callback_query.message.chat.id : null);
+    if (chatId && chatId !== ADMIN_CHAT_ID) {
+        bot.sendMessage(chatId, 'Lo siento, no tienes permiso para usar este bot.');
+        res.end();
+        return;
+    }
+    next();
 });
 
+app.post(`/bot${token}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
-// Escucha el comando /start
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
 
-  // Guarda el estado del administrador
   adminState[chatId] = { step: 'menu' };
 
   const options = {
@@ -55,7 +52,6 @@ bot.onText(/\/start/, (msg) => {
   bot.sendMessage(chatId, '¡Hola! ¿Qué quieres hacer hoy?', options);
 });
 
-// Escucha los clics en los botones
 bot.on('callback_query', async (callbackQuery) => {
   const msg = callbackQuery.message;
   const data = callbackQuery.data;
@@ -68,24 +64,22 @@ bot.on('callback_query', async (callbackQuery) => {
     };
     bot.sendMessage(chatId, `Has elegido subir una película ${adminState[chatId].isPremium ? 'Premium' : 'gratis'}. Por favor, escribe el nombre de la película para buscar en TMDB.`);
   }
-  
-  // NUEVA LÓGICA PARA MANEJAR LA SOLICITUD
+
   if (data.startsWith('solicitud_')) {
       const movieTitle = data.replace('solicitud_', '');
       
-      // Busca la película en TMDB para obtener sus datos
       const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(movieTitle)}&language=es-ES`;
       const response = await fetch(searchUrl);
-      const data = await response.json();
+      const searchData = await response.json();
       
-      if (data.results && data.results.length > 0) {
-          const movieData = data.results[0]; // Usamos el primer resultado como la película solicitada
+      if (searchData.results && searchData.results.length > 0) {
+          const movieData = searchData.results[0];
           
           adminState[chatId] = {
               step: 'awaiting_video_link',
               selectedMovieId: movieData.id,
-              results: data.results,
-              isPremium: false // Asumimos que las solicitudes son para películas gratis
+              results: searchData.results,
+              isPremium: false
           };
           
           const posterUrl = movieData.poster_path ? `https://image.tmdb.org/t/p/w500${movieData.poster_path}` : 'https://placehold.co/500x750?text=No+Poster';
@@ -97,7 +91,28 @@ bot.on('callback_query', async (callbackQuery) => {
           bot.sendMessage(chatId, 'Error: No se encontró la película solicitada en TMDB. Intenta buscarla manualmente.');
       }
   }
+
+  if (data.startsWith('add_movie_') && adminState[chatId] && adminState[chatId].step === 'select_movie') {
+    const movieId = parseInt(data.replace('add_movie_', ''), 10);
+    const movieData = adminState[chatId].results.find(m => m.id === movieId);
+    
+    if (movieData) {
+      adminState[chatId].step = 'awaiting_video_link';
+      adminState[chatId].selectedMovieId = movieId;
+
+      const posterUrl = movieData.poster_path ? `https://image.tmdb.org/t/p/w500${movieData.poster_path}` : 'https://placehold.co/500x750?text=No+Poster';
+      
+      const message = `Seleccionaste "${movieData.title}".\n\nPor favor, envía el enlace MP4 de la película.`;
+      
+      bot.sendPhoto(chatId, posterUrl, { caption: message });
+
+    } else {
+      bot.sendMessage(chatId, 'Error: Película no encontrada. Intenta buscar de nuevo.');
+      adminState[chatId].step = 'search';
+    }
+  }
 });
+
 
 // Escucha los mensajes de texto para la búsqueda
 bot.on('message', async (msg) => {
@@ -188,32 +203,3 @@ bot.on('message', async (msg) => {
     }
   }
 });
-
-// Escucha el clic en "Agregar película"
-bot.on('callback_query', (callbackQuery) => {
-  const msg = callbackQuery.message;
-  const data = callbackQuery.data;
-  const chatId = msg.chat.id;
-
-  if (data.startsWith('add_movie_') && adminState[chatId] && adminState[chatId].step === 'select_movie') {
-    const movieId = parseInt(data.replace('add_movie_', ''), 10);
-    const movieData = adminState[chatId].results.find(m => m.id === movieId);
-    
-    if (movieData) {
-      adminState[chatId].step = 'awaiting_video_link';
-      adminState[chatId].selectedMovieId = movieId;
-
-      const posterUrl = movieData.poster_path ? `https://image.tmdb.org/t/p/w500${movieData.poster_path}` : 'https://placehold.co/500x750?text=No+Poster';
-      
-      const message = `Seleccionaste "${movieData.title}".\n\nPor favor, envía el enlace MP4 de la película.`;
-      
-      bot.sendPhoto(chatId, posterUrl, { caption: message });
-
-    } else {
-      bot.sendMessage(chatId, 'Error: Película no encontrada. Intenta buscar de nuevo.');
-      adminState[chatId].step = 'search';
-    }
-  }
-});
-
-console.log('El bot está en funcionamiento...');
