@@ -174,15 +174,3 @@ bot.on('message', async (msg) => {
     }
   }
 });
-
-const app = express();
-app.use(express.json());
-
-app.post(`/bot${token}`, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
-
-app.listen(PORT, () => {
-    console.log(`El bot está en funcionamiento en el puerto ${PORT}`);
-});
