@@ -7,6 +7,7 @@ dotenv.config();
 
 // Usa la variable de entorno para el token
 const token = process.env.TELEGRAM_BOT_TOKEN;
+// Cambia { polling: true } a { polling: false } para usar webhooks en un entorno de producción, pero para este caso el polling + el servidor web funciona para Render.
 const bot = new TelegramBot(token, { polling: true });
 
 // URL de tu servidor de backend en Render
@@ -97,7 +98,7 @@ bot.on('message', async (msg) => {
         } catch (error) {
             console.error("Error al buscar en TMDB:", error);
             bot.sendMessage(chatId, 'Hubo un error al buscar la película. Intenta de nuevo.');
-            adminState[chatId].step = 'search';
+                adminState[chatId].step = 'search';
         }
     } 
     // Lógica para la recepción del enlace de video
@@ -208,3 +209,18 @@ bot.on('callback_query', async (callbackQuery) => {
 });
 
 console.log('El bot está en funcionamiento...');
+
+// --- SERVIDOR WEB ---
+// Crea un servidor web para que Render sepa que la aplicación está activa.
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Define una ruta simple que responda con "¡El bot está activo!"
+app.get('/', (req, res) => {
+  res.send('¡El bot de Telegram está activo y funcionando!');
+});
+
+// Haz que el servidor escuche en el puerto de Render
+app.listen(port, () => {
+  console.log(`Servidor web escuchando en el puerto ${port}`);
+});
