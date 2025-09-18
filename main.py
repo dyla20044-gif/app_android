@@ -19,7 +19,10 @@ import threading
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 GOODSTREAM_API_KEY = os.environ.get("GOODSTREAM_API_KEY")
-ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID"))
+try:
+    ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID"))
+except (ValueError, TypeError):
+    ADMIN_USER_ID = None
 
 GOODSTREAM_BASE_URL = "https://goodstream.one/api"
 
@@ -40,9 +43,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Bot is online and running!")
 
 def run_web_server():
-    server_address = ('', os.environ.get('PORT', 8080))
-    httpd = HTTPServer(server_address, RequestHandler)
-    httpd.serve_forever()
+    try:
+        port = int(os.environ.get("PORT", 8080))
+        server_address = ('', port)
+        httpd = HTTPServer(server_address, RequestHandler)
+        httpd.serve_forever()
+    except Exception as e:
+        print(f"❌ Error en el servidor web: {e}")
 
 # ---------------------------------------------------------------------------------
 # Funciones de ayuda para la interfaz
@@ -117,8 +124,13 @@ async def handle_video_file(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not is_admin(update.effective_user.id):
         return
         
-    file_info = await context.bot.get_file(update.message.video.file_id)
-    download_url = file_info.file_path
+    file_info = update.message.video
+    if file_info.file_size > 2097152000: # 2 GB en bytes
+        await update.message.reply_text("❌ El archivo es demasiado grande. Telegram solo soporta hasta 2 GB.")
+        return
+        
+    file = await context.bot.get_file(file_info.file_id)
+    download_url = file.file_path
 
     message = await update.message.reply_text("⏳ Subiendo video... esto puede tardar unos minutos.")
 
@@ -229,7 +241,7 @@ async def get_stats(query, context):
 # ---------------------------------------------------------------------------------
 def main() -> None:
     """Función principal para iniciar el bot."""
-    if not TELEGRAM_BOT_TOKEN or not GOODSTREAM_API_KEY or not ADMIN_USER_ID:
+    if not TELEGRAM_BOT_TOKEN or not GOODSTREAM_API_KEY or ADMIN_USER_ID is None:
         print("❌ Error: Las variables de entorno no están configuradas correctamente.")
         return
     
