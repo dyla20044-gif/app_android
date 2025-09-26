@@ -1113,21 +1113,26 @@ function switchScreen(screenId) {
     }
 }
 
-// --- Modificación de popstate (Fixes Issue 1 & 2) ---
+// --- Modificación de popstate (Fixes Issue 1, 2 y el Error de Regreso de Búsqueda) ---
 window.addEventListener('popstate', async (event) => {
     const state = event.state;
     
-    // ISSUE 1 FIX: Limpiar modales flotantes y reproductor
+    // ISSUE 1 & 2 FIX: Limpiar modales flotantes y reproductor
     resetDetailsPlayer(); 
     closeAllModals(); 
     
+    // FIX del ERROR 4: Asegurar que todas las pantallas, incluyendo 'details-screen', 
+    // se desactiven antes de restaurar el estado anterior. Esto elimina la "pantalla transparente" y los restos de info.
+    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+
     if (state) {
         if (state.screen === 'details-screen') {
             // Caso 1: El usuario navegó a un estado de detalles (esto no debería ocurrir con 'back' button)
             const item = state.item;
             const type = state.type;
             if (item && type) {
-                showDetailsScreen(item, type);
+                // Re-mostrar detalles (manteniendo la lógica original para este caso, aunque es raro con 'back')
+                showDetailsScreen(item, type); 
             } else {
                 switchScreen('home-screen');
             }
@@ -1153,6 +1158,7 @@ window.addEventListener('popstate', async (event) => {
                 document.querySelector('.top-nav').style.display = 'none';
                 document.querySelector('.bottom-nav').style.display = 'none';
                 appContainer.style.paddingBottom = '0';
+                searchFilters.style.display = 'flex'; // Restaurar visibilidad de filtros
 
             } else {
                 // Estado normal (e.g., home, movies, series)
