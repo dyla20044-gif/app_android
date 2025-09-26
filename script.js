@@ -621,6 +621,11 @@ async function showDetailsScreen(item, type) {
     if (searchOverlay.classList.contains('active')) {
         searchOverlay.classList.remove('active');
         moviesScreen.classList.remove('search-active'); 
+        
+        // CORRECCIÓN: Restaurar ambas barras al salir de la vista de búsqueda
+        document.querySelector('.top-nav').style.display = 'flex'; 
+        document.querySelector('.bottom-nav').style.display = 'flex'; 
+        document.getElementById('app-container').style.paddingBottom = '70px';
     }
     
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1016,10 +1021,10 @@ async function handleSearch(query) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             moviesScreen.classList.add('active', 'search-active');
             
-            // Ocultar navs (ya que el overlay está visible)
+            // CORRECCIÓN: Ocultar solo top-nav, mantener bottom-nav y padding
             document.querySelector('.top-nav').style.display = 'none';
-            document.querySelector('.bottom-nav').style.display = 'none';
-            appContainer.style.paddingBottom = '0'; 
+            document.querySelector('.bottom-nav').style.display = 'flex';
+            appContainer.style.paddingBottom = '70px'; 
 
             // Actualizar el historial para el estado de búsqueda
             // *** CORRECCIÓN: Usamos replaceState para no apilar múltiples búsquedas (Problema 3) ***
@@ -1048,7 +1053,7 @@ filterButtons.forEach(button => {
     });
 });
 
-// --- Modificación de switchScreen (FIX visibilidad de barras en detalles) ---
+// --- Modificación de switchScreen (FIX visibilidad de barras en detalles y búsqueda) ---
 function switchScreen(screenId) {
     // 1. Limpieza inicial
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
@@ -1090,17 +1095,20 @@ function switchScreen(screenId) {
     // El overlay de búsqueda siempre debe forzar la ocultación de navs
     const isSearchActive = searchOverlay.classList.contains('active');
 
-    // *** CORRECCIÓN: Eliminamos 'details-screen' de la lista de pantallas que ocultan las barras ***
-    if (screenId === 'auth-screen' || isSearchActive) { 
+    if (screenId === 'auth-screen') { 
+        // Ocultar ambas barras para la pantalla de autenticación
         topNav.style.display = 'none';
         bottomNav.style.display = 'none';
         appContainer.style.paddingBottom = '0';
-
+    } else if (isSearchActive) { 
+        // En modo búsqueda, solo oculta la barra superior. La inferior permanece visible.
+        topNav.style.display = 'none';
+        bottomNav.style.display = 'flex'; 
+        appContainer.style.paddingBottom = '70px'; 
         // Si es la pantalla de búsqueda activa, aseguramos que la clase de layout persista
-        if (isSearchActive && screenId === 'movies-screen') {
+        if (screenId === 'movies-screen') {
             moviesScreen.classList.add('search-active');
         }
-
     } else {
         // Estado normal: top-nav visible
         topNav.style.display = 'flex';
@@ -1156,10 +1164,10 @@ window.addEventListener('popstate', async (event) => {
                     renderSearchResults(lastSearchResults, 'all'); 
                 }
                 
-                // Ocultar top-nav y bottom-nav (Porque el overlay de búsqueda está activo)
+                // CORRECCIÓN: Ocultar solo top-nav, mantener bottom-nav y padding
                 document.querySelector('.top-nav').style.display = 'none';
-                document.querySelector('.bottom-nav').style.display = 'none';
-                appContainer.style.paddingBottom = '0';
+                document.querySelector('.bottom-nav').style.display = 'flex';
+                appContainer.style.paddingBottom = '70px';
                 searchFilters.style.display = 'flex'; // Restaurar visibilidad de filtros
 
             } else {
@@ -1198,10 +1206,10 @@ if (btnOpenSearch) {
         searchOverlay.classList.add('active');
         searchInput.focus();
         
-        // REQ 3: Ocultar navs y forzar la pantalla de resultados
+        // CORRECCIÓN: Ocultar solo top-nav, mantener bottom-nav y padding
         document.querySelector('.top-nav').style.display = 'none';
-        document.querySelector('.bottom-nav').style.display = 'none';
-        appContainer.style.paddingBottom = '0'; 
+        document.querySelector('.bottom-nav').style.display = 'flex';
+        appContainer.style.paddingBottom = '70px'; 
 
         // Forzar la vista de resultados y aplicar clase para layout (REQ 2)
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
