@@ -33,7 +33,6 @@ const settingsScreen = document.getElementById('settings-screen');
 const authScreen = document.getElementById('auth-screen');
 const navItems = document.querySelectorAll('.bottom-nav .nav-item');
 const screenButtons = document.querySelectorAll('[data-screen]');
-// Antiguo searchInput: const searchInput = document.getElementById('search-input');
 const searchIconTop = document.getElementById('search-icon');
 const videoModal = document.getElementById('video-modal');
 const videoPlayer = document.getElementById('video-player');
@@ -589,7 +588,14 @@ function renderComments(tmdbId) {
 }
 
 
+// --- Modificación de showDetailsScreen (REQ 3 - Ocultar al entrar al detalle) ---
 async function showDetailsScreen(item, type) {
+    // REQ 3: Al seleccionar una película de los resultados de búsqueda, ocultar la barra de búsqueda.
+    if (searchOverlay.classList.contains('active')) {
+        searchOverlay.classList.remove('active');
+        moviesScreen.classList.remove('search-active'); 
+    }
+    
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     detailsScreen.classList.add('active');
     appContainer.scrollTo({ top: 0, behavior: 'smooth' });
@@ -626,8 +632,6 @@ async function showDetailsScreen(item, type) {
         const actors = credits.cast.slice(0, 3).map(a => a.name).join(', ');
         actorsList.textContent = actors || 'No disponible';
         
-        // ✅ CORRECCIÓN CLAVE: Se convierte el item.id a string para la comparación
-        // Esto resuelve el problema de la no visualización de los episodios
         const localData = (type === 'movie' ? moviesData : seriesData).find(d => d.tmdbId === item.id.toString());
         
         currentMovieOrSeries = localData || { tmdbId: item.id }; // Asegurar que tenga el tmdbId
@@ -715,8 +719,9 @@ function createMovieCard(movie, type = 'movie') {
     
     // CORRECCIÓN CLAVE: Pasar el tipo de contenido dinámicamente
     movieCard.addEventListener('click', () => {
-        // Guardar el estado actual antes de navegar a los detalles
-        history.pushState({ screen: 'details-screen', item: movie, type: type || movie.media_type }, '', '');
+        // Guardar el estado de búsqueda antes de navegar a los detalles
+        const currentState = history.state || { screen: 'home-screen' };
+        history.pushState({ screen: 'details-screen', item: movie, type: type || movie.media_type, fromSearch: currentState.searchActive }, '', '');
         showDetailsScreen(movie, type || movie.media_type)
     });
     return movieCard;
@@ -808,7 +813,6 @@ async function fetchHomeContent() {
         renderCarousel('populares-movies', popularMovies, 'movie');
 
         const trendingContent = await fetchFromTMDB('trending/all/day');
-        // ✅ LINEA CORREGIDA
         renderCarousel('tendencias-movies', trendingContent);
 
         const actionMovies = await fetchFromTMDB('discover/movie?with_genres=28');
@@ -918,7 +922,7 @@ function renderGenresModal(type) {
     }
 }
 
-// REQ 1: Comportamiento del input de búsqueda en el Overlay
+// REQ 3: Comportamiento del input de búsqueda en el Overlay
 searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         handleSearch(searchInput.value);
@@ -930,8 +934,9 @@ searchInput.addEventListener('input', (e) => {
     if (query.length > 2) {
         handleSearch(query);
     } else if (query.length === 0) {
-        // Al borrar la búsqueda, se regresa a la pantalla de inicio
-        switchScreen('home-screen');
+        // Al borrar la búsqueda, regresa al flujo normal de movies-screen o home
+        moviesScreen.classList.remove('search-active');
+        switchScreen('home-screen'); // Vuelve al home si no hay query
     }
 });
 
@@ -957,7 +962,7 @@ function renderSearchResults(results, filterType = 'all') {
     }
 }
 
-
+// --- Modificación de handleSearch (REQ 3 - Flujo de búsqueda) ---
 async function handleSearch(query) {
     if (query.length > 2) {
         showLoader();
@@ -967,8 +972,18 @@ async function handleSearch(query) {
             
             renderSearchResults(lastSearchResults);
 
-            switchScreen('movies-screen');
-            searchFilters.style.display = 'flex';
+            // REQ 3 & 2: Asegurar que movies-screen está activa y la clase de layout está puesta
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            moviesScreen.classList.add('active', 'search-active');
+            
+            // Ocultar navs (ya que el overlay está visible)
+            document.querySelector('.top-nav').style.display = 'none';
+            document.querySelector('.bottom-nav').style.display = 'none';
+            appContainer.style.paddingBottom = '0'; 
+
+            // Actualizar el historial para el estado de búsqueda
+            history.pushState({ screen: 'movies-screen', searchActive: true, query: query, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(query)}`);
+            
         } catch (error) {
             console.error("Error performing search:", error);
             alert('Hubo un error en la búsqueda. Por favor, intenta de nuevo.');
@@ -976,10 +991,12 @@ async function handleSearch(query) {
             hideLoader();
         }
     } else if (query.length === 0) {
-        searchFilters.style.display = 'none';
-        switchScreen('home-screen');
+        // Si el query se borra, vuelve al home (esto también lo maneja el input listener)
+        moviesScreen.classList.remove('search-active');
+        switchScreen('home-screen'); 
     }
 }
+
 
 filterButtons.forEach(button => {
     button.addEventListener('click', () => {
@@ -990,22 +1007,30 @@ filterButtons.forEach(button => {
     });
 });
 
-// REQ 1: Lógica de activación/desactivación de pantallas y barras de navegación
+// --- Modificación de switchScreen (REQ 3 - Flujo y Visibilidad) ---
 function switchScreen(screenId) {
+    // 1. Limpieza inicial
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-    
+    moviesScreen.classList.remove('search-active'); // Limpiar clase search-active por defecto
+
     const targetScreen = document.getElementById(screenId);
     if (targetScreen) {
         targetScreen.classList.add('active');
         const navItem = document.querySelector(`.nav-item[data-screen="${screenId}"]`);
         if (navItem) navItem.classList.add('active');
-        history.pushState({ screen: screenId }, '', `?screen=${screenId}`);
+        // Solo actualiza el historial si NO es un regreso de búsqueda y si no es la pantalla de detalles
+        if (!history.state || history.state.screen !== screenId) {
+             history.pushState({ screen: screenId }, '', `?screen=${screenId}`);
+        }
     }
 
     if (screenId === 'movies-screen') {
-        renderAllMovies();
-        searchFilters.style.display = 'none';
+        // Solo renderiza si no es el resultado de una búsqueda activa.
+        if (!searchOverlay.classList.contains('active')) {
+            renderAllMovies();
+            searchFilters.style.display = 'none';
+        }
     } else if (screenId === 'series-screen') {
         renderAllSeries();
         searchFilters.style.display = 'none';
@@ -1017,16 +1042,25 @@ function switchScreen(screenId) {
         searchFilters.style.display = 'none';
     }
     
-    // Visibilidad de Navs
+    // 2. Visibilidad de Navs
     const topNav = document.querySelector('.top-nav');
     const bottomNav = document.querySelector('.bottom-nav');
 
-    // Ocultar barras si estamos en detalles, autenticación o el overlay de búsqueda está activo
-    if (screenId === 'details-screen' || screenId === 'auth-screen' || searchOverlay.classList.contains('active')) {
+    // El overlay de búsqueda siempre debe forzar la ocultación de navs
+    const isSearchActive = searchOverlay.classList.contains('active');
+
+    if (screenId === 'details-screen' || screenId === 'auth-screen' || isSearchActive) {
         topNav.style.display = 'none';
         bottomNav.style.display = 'none';
         appContainer.style.paddingBottom = '0';
+
+        // Si es la pantalla de búsqueda activa, aseguramos que la clase de layout persista
+        if (isSearchActive && screenId === 'movies-screen') {
+            moviesScreen.classList.add('search-active');
+        }
+
     } else {
+        // Estado normal: top-nav visible
         topNav.style.display = 'flex';
         // Mostrar la barra inferior solo en las 3 pantallas principales
         if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen') {
@@ -1039,6 +1073,7 @@ function switchScreen(screenId) {
     }
 }
 
+// --- Modificación de popstate (REQ 3 - Flujo de regreso) ---
 window.addEventListener('popstate', async (event) => {
     const state = event.state;
     if (state) {
@@ -1051,47 +1086,31 @@ window.addEventListener('popstate', async (event) => {
                 switchScreen('home-screen');
             }
         } else {
-            document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-            const targetScreen = document.getElementById(state.screen);
-            if (targetScreen) {
-                targetScreen.classList.add('active');
-                const navItem = document.querySelector(`.nav-item[data-screen="${state.screen}"]`);
-                if (navItem) navItem.classList.add('active');
-                if (state.screen === 'movies-screen') {
-                    renderAllMovies();
-                    searchFilters.style.display = 'none';
-                } else if (state.screen === 'series-screen') {
-                    renderAllSeries();
-                    searchFilters.style.display = 'none';
-                } else if (state.screen === 'home-screen') {
-                    fetchHomeContent();
-                    searchFilters.style.display = 'none';
-                } else if (state.screen === 'favorites-screen') {
-                    fetchFavorites();
-                    searchFilters.style.display = 'none';
+            // Lógica para pantallas normales
+            
+            // REQ 3: Si regresamos a un estado de búsqueda, restaurar el estado.
+            if (state.screen === 'movies-screen' && state.searchActive) {
+                // Restaurar estado de búsqueda
+                searchOverlay.classList.add('active');
+                moviesScreen.classList.add('active'); // Activa la pantalla de resultados
+                moviesScreen.classList.add('search-active'); // Aplica la clase de layout (REQ 2)
+
+                searchInput.value = state.query || '';
+                // Restaurar resultados (lastSearchResults ya debería estar precargado en handleSearch)
+                if (state.results) {
+                    lastSearchResults = state.results;
+                    renderSearchResults(lastSearchResults, 'all'); 
                 }
                 
-                const topNav = document.querySelector('.top-nav');
-                const bottomNav = document.querySelector('.bottom-nav');
-
-                if (state.screen === 'details-screen' || state.screen === 'auth-screen' || searchOverlay.classList.contains('active')) {
-                    topNav.style.display = 'none';
-                    bottomNav.style.display = 'none';
-                    appContainer.style.paddingBottom = '0';
-                } else {
-                    topNav.style.display = 'flex';
-                    // Mostrar la barra inferior solo en las 3 pantallas principales
-                    if (state.screen === 'home-screen' || state.screen === 'movies-screen' || state.screen === 'series-screen') {
-                        bottomNav.style.display = 'flex';
-                        appContainer.style.paddingBottom = '70px';
-                    } else {
-                        bottomNav.style.display = 'none';
-                        appContainer.style.paddingBottom = '0';
-                    }
-                }
+                // Ocultar top-nav y bottom-nav
+                document.querySelector('.top-nav').style.display = 'none';
+                document.querySelector('.bottom-nav').style.display = 'none';
+                appContainer.style.paddingBottom = '0';
             } else {
-                switchScreen('home-screen');
+                // Estado normal, asegurar que el overlay esté cerrado
+                searchOverlay.classList.remove('active');
+                moviesScreen.classList.remove('search-active');
+                switchScreen(state.screen); // Llama a switchScreen para visibilidad de navs
             }
         }
     } else {
@@ -1100,7 +1119,8 @@ window.addEventListener('popstate', async (event) => {
     }
 });
 
-// Listener para el link de Perfil en la barra superior (REQ 1)
+
+// Listener para el link de Perfil en la barra superior
 const topProfileLink = document.getElementById('top-profile-link');
 if (topProfileLink) {
     topProfileLink.addEventListener('click', (e) => {
@@ -1121,25 +1141,41 @@ if (btnOpenSearch) {
     btnOpenSearch.addEventListener('click', () => {
         searchOverlay.classList.add('active');
         searchInput.focus();
+        
+        // REQ 3: Ocultar navs y forzar la pantalla de resultados
         document.querySelector('.top-nav').style.display = 'none';
         document.querySelector('.bottom-nav').style.display = 'none';
+        appContainer.style.paddingBottom = '0'; 
+
+        // Forzar la vista de resultados y aplicar clase para layout (REQ 2)
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        moviesScreen.classList.add('active', 'search-active');
+        searchFilters.style.display = 'flex'; // Asegurar que los filtros sean visibles
+
+        // Si ya había resultados, los muestra, sino la pantalla queda lista para escribir.
+        if (lastSearchResults.length > 0) {
+            renderSearchResults(lastSearchResults);
+        } else {
+            allMoviesGrid.innerHTML = '';
+        }
+
+        // Crear un estado en el historial para el estado de búsqueda
+        history.pushState({ screen: 'movies-screen', searchActive: true, query: searchInput.value, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(searchInput.value)}`);
     });
 }
 
-// Listener para Cerrar Búsqueda (REQ 1)
+// Listener para Cerrar Búsqueda (REQ 1 - X más accesible y REQ 3 - Flujo)
 if (closeSearchButton) {
     closeSearchButton.addEventListener('click', () => {
         searchOverlay.classList.remove('active');
-        document.querySelector('.top-nav').style.display = 'flex';
-        // Mantener la visibilidad de bottom-nav acorde al screen actual
-        const currentScreen = document.querySelector('.screen.active').id;
-        if (currentScreen === 'home-screen' || currentScreen === 'movies-screen' || currentScreen === 'series-screen') {
-             document.querySelector('.bottom-nav').style.display = 'flex';
-        } else {
-             document.querySelector('.bottom-nav').style.display = 'none';
-        }
-
+        moviesScreen.classList.remove('search-active'); // Remover clase de layout
+        
+        // Limpiar el estado de búsqueda
         searchInput.value = '';
+        lastSearchResults = [];
+        renderSearchResults(lastSearchResults); 
+        
+        // Regresa al home, restaurando el estado normal de los navs
         switchScreen('home-screen');
     });
 }
