@@ -211,6 +211,19 @@ if (btnToggleTheme) {
 
 // --- Funciones principales y de renderizado ---
 
+// Nueva función para limpiar el estado del reproductor/póster de detalles (Fixes Issue 1 & 2)
+function resetDetailsPlayer() {
+    if (embeddedPlayerContainer) {
+        embeddedPlayerContainer.style.display = 'none';
+        embeddedPlayerContainer.innerHTML = '';
+    }
+    // Restablecer el área del póster a su estado predeterminado
+    detailsPosterTop.style.backgroundColor = 'transparent';
+    detailsPosterTop.style.backgroundImage = ''; // Limpiar la imagen de fondo incrustada
+    playButtonContainer.style.display = 'flex';
+}
+
+
 function showFreeAdModal(freeEmbedCode) {
     showModal(freeAdModal);
     setupFreeAdModalButtons(freeEmbedCode);
@@ -588,7 +601,7 @@ function renderComments(tmdbId) {
 }
 
 
-// --- Modificación de showDetailsScreen (REQ 3 - Ocultar al entrar al detalle) ---
+// --- Modificación de showDetailsScreen (Fixes Issue 1 & 2) ---
 async function showDetailsScreen(item, type) {
     // REQ 3: Al seleccionar una película de los resultados de búsqueda, ocultar la barra de búsqueda.
     if (searchOverlay.classList.contains('active')) {
@@ -605,17 +618,14 @@ async function showDetailsScreen(item, type) {
     episodesContainer.innerHTML = '';
     seasonsContainer.style.display = 'none';
 
-    detailsPosterTop.style.backgroundImage = 'none';
-    detailsPosterTop.style.backgroundColor = 'transparent';
-    playButtonContainer.style.display = 'flex';
-    if (document.getElementById('embedded-player-container')) {
-        document.getElementById('embedded-player-container').style.display = 'none';
-        document.getElementById('embedded-player-container').innerHTML = '';
-    }
+    // ISSUE 1 & 2 FIX: Reset player state before loading new details
+    resetDetailsPlayer();
 
     try {
         const posterPath = item.backdrop_path || item.poster_path;
         const posterUrl = posterPath ? `https://image.tmdb.org/t/p/original${posterPath}` : 'https://placehold.co/500x750?text=No+Poster';
+        
+        // ISSUE 2 FIX: Asegura que la imagen de fondo se cargue correctamente
         detailsPosterTop.style.backgroundImage = `url('${posterUrl}')`;
 
         detailsTitle.textContent = item.title || item.name;
@@ -648,7 +658,7 @@ async function showDetailsScreen(item, type) {
             incrementViewCount(currentMovieOrSeries.tmdbId);
             
             // 2. Likes
-            const likeCount = await getLikeCount(currentMovieOrSeries.tmdbId);
+            const likeCount = await getLikeCount(currentMovieOrOrSeries.tmdbId);
             if (likeCountDisplay) {
                 likeCountDisplay.textContent = `${likeCount} Me Gusta`;
             }
@@ -721,7 +731,17 @@ function createMovieCard(movie, type = 'movie') {
     movieCard.addEventListener('click', () => {
         // Guardar el estado de búsqueda antes de navegar a los detalles
         const currentState = history.state || { screen: 'home-screen' };
-        history.pushState({ screen: 'details-screen', item: movie, type: type || movie.media_type, fromSearch: currentState.searchActive }, '', '');
+        
+        // Usamos el flag 'searchActive' del estado actual (que es 'movies-screen' con resultados de búsqueda)
+        const isComingFromSearch = currentState.searchActive === true;
+
+        history.pushState({ 
+            screen: 'details-screen', 
+            item: movie, 
+            type: type || movie.media_type, 
+            // Guardamos el estado de dónde venimos para restaurarlo
+            previousState: currentState 
+        }, '', '');
         showDetailsScreen(movie, type || movie.media_type)
     });
     return movieCard;
@@ -1073,11 +1093,16 @@ function switchScreen(screenId) {
     }
 }
 
-// --- Modificación de popstate (REQ 3 - Flujo de regreso) ---
+// --- Modificación de popstate (Fixes Issue 1 & 2) ---
 window.addEventListener('popstate', async (event) => {
     const state = event.state;
+    
+    // ISSUE 1 FIX: Limpiar el reproductor y el área de detalles al regresar de CUALQUIER pantalla
+    resetDetailsPlayer(); 
+    
     if (state) {
         if (state.screen === 'details-screen') {
+            // Caso 1: El usuario navegó a un estado de detalles (esto no debería ocurrir con 'back' button)
             const item = state.item;
             const type = state.type;
             if (item && type) {
@@ -1086,17 +1111,18 @@ window.addEventListener('popstate', async (event) => {
                 switchScreen('home-screen');
             }
         } else {
-            // Lógica para pantallas normales
+            // Caso 2: El usuario regresó de una pantalla de detalles a un estado anterior (lista de búsqueda o home)
             
-            // REQ 3: Si regresamos a un estado de búsqueda, restaurar el estado.
-            if (state.screen === 'movies-screen' && state.searchActive) {
+            // REQ 3: Checkear si el estado al que regresamos implica búsqueda activa.
+            const previousStateIsSearch = state.searchActive;
+
+            if (previousStateIsSearch) {
                 // Restaurar estado de búsqueda
                 searchOverlay.classList.add('active');
-                moviesScreen.classList.add('active'); // Activa la pantalla de resultados
-                moviesScreen.classList.add('search-active'); // Aplica la clase de layout (REQ 2)
+                moviesScreen.classList.add('active'); 
+                moviesScreen.classList.add('search-active'); 
 
                 searchInput.value = state.query || '';
-                // Restaurar resultados (lastSearchResults ya debería estar precargado en handleSearch)
                 if (state.results) {
                     lastSearchResults = state.results;
                     renderSearchResults(lastSearchResults, 'all'); 
@@ -1106,11 +1132,12 @@ window.addEventListener('popstate', async (event) => {
                 document.querySelector('.top-nav').style.display = 'none';
                 document.querySelector('.bottom-nav').style.display = 'none';
                 appContainer.style.paddingBottom = '0';
+
             } else {
-                // Estado normal, asegurar que el overlay esté cerrado
+                // Estado normal (e.g., home, movies, series)
                 searchOverlay.classList.remove('active');
                 moviesScreen.classList.remove('search-active');
-                switchScreen(state.screen); // Llama a switchScreen para visibilidad de navs
+                switchScreen(state.screen); 
             }
         }
     } else {
