@@ -1002,7 +1002,7 @@ function renderSearchResults(results, filterType = 'all') {
     }
 }
 
-// --- Modificación de handleSearch (REQ 3 - Flujo de búsqueda) ---
+// --- Modificación de handleSearch (REQ 3 - Flujo de búsqueda y FIX apilamiento) ---
 async function handleSearch(query) {
     if (query.length > 2) {
         showLoader();
@@ -1022,7 +1022,8 @@ async function handleSearch(query) {
             appContainer.style.paddingBottom = '0'; 
 
             // Actualizar el historial para el estado de búsqueda
-            history.pushState({ screen: 'movies-screen', searchActive: true, query: query, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(query)}`);
+            // *** CORRECCIÓN: Usamos replaceState para no apilar múltiples búsquedas (Problema 3) ***
+            history.replaceState({ screen: 'movies-screen', searchActive: true, query: query, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(query)}`);
             
         } catch (error) {
             console.error("Error performing search:", error);
@@ -1047,7 +1048,7 @@ filterButtons.forEach(button => {
     });
 });
 
-// --- Modificación de switchScreen (REQ 3 - Flujo y Visibilidad) ---
+// --- Modificación de switchScreen (FIX visibilidad de barras en detalles) ---
 function switchScreen(screenId) {
     // 1. Limpieza inicial
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
@@ -1089,7 +1090,8 @@ function switchScreen(screenId) {
     // El overlay de búsqueda siempre debe forzar la ocultación de navs
     const isSearchActive = searchOverlay.classList.contains('active');
 
-    if (screenId === 'details-screen' || screenId === 'auth-screen' || isSearchActive) {
+    // *** CORRECCIÓN: Eliminamos 'details-screen' de la lista de pantallas que ocultan las barras ***
+    if (screenId === 'auth-screen' || isSearchActive) { 
         topNav.style.display = 'none';
         bottomNav.style.display = 'none';
         appContainer.style.paddingBottom = '0';
@@ -1102,8 +1104,8 @@ function switchScreen(screenId) {
     } else {
         // Estado normal: top-nav visible
         topNav.style.display = 'flex';
-        // Mostrar la barra inferior solo en las 3 pantallas principales
-        if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen') {
+        // Mostrar la barra inferior solo en las 3 pantallas principales Y detalles (solicitud del usuario)
+        if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen' || screenId === 'details-screen') { // ADDED 'details-screen'
             bottomNav.style.display = 'flex';
             appContainer.style.paddingBottom = '70px';
         } else {
@@ -1154,7 +1156,7 @@ window.addEventListener('popstate', async (event) => {
                     renderSearchResults(lastSearchResults, 'all'); 
                 }
                 
-                // Ocultar top-nav y bottom-nav
+                // Ocultar top-nav y bottom-nav (Porque el overlay de búsqueda está activo)
                 document.querySelector('.top-nav').style.display = 'none';
                 document.querySelector('.bottom-nav').style.display = 'none';
                 appContainer.style.paddingBottom = '0';
