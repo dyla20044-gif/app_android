@@ -9,7 +9,7 @@ const firebaseConfig = {
     projectId: "app-aeff2",
     storageBucket: "app-aeff2.firebasestorage.app",
     messagingSenderId: "12229598213",
-    appId: "1:12229598213:web:80555d9d22c30b69ddd06c",
+    appId: "1:12229599999:web:80555d9d22c30b69ddd06c",
     measurementId: "G-ZMQN0D6D4S"
 };
 
@@ -153,6 +153,20 @@ function hideLoader() {
     if (loader) loader.style.display = 'none';
 }
 
+// NUEVA FUNCIÓN (Fix para el Problema 1)
+function closeAllModals() {
+    const modalsToClose = [
+        document.getElementById('video-modal'),
+        document.getElementById('premium-info-modal'),
+        document.getElementById('payment-modal'),
+        document.getElementById('free-ad-modal'),
+        document.getElementById('pro-restriction-modal'),
+        document.getElementById('download-app-modal')
+    ];
+    modalsToClose.forEach(modal => closeModal(modal));
+}
+
+// Listener global de cierre
 closeButtons.forEach(button => {
     button.addEventListener('click', (event) => {
         const modal = event.target.closest('.modal') || event.target.closest('.modal-from-bottom');
@@ -166,6 +180,19 @@ window.addEventListener('click', (event) => {
         closeModal(event.target);
     }
 });
+
+// Fix para el Problema 1 y 2 (Limpieza de Reproductor)
+function resetDetailsPlayer() {
+    if (embeddedPlayerContainer) {
+        embeddedPlayerContainer.style.display = 'none';
+        embeddedPlayerContainer.innerHTML = '';
+    }
+    // Restablecer el área del póster a su estado predeterminado
+    detailsPosterTop.style.backgroundColor = 'transparent';
+    detailsPosterTop.style.backgroundImage = ''; // Limpiar la imagen de fondo incrustada
+    playButtonContainer.style.display = 'flex';
+}
+
 
 // --- Lógica del Tema Dual (REQUERIMIENTO 2) ---
 
@@ -210,19 +237,6 @@ if (btnToggleTheme) {
 }
 
 // --- Funciones principales y de renderizado ---
-
-// Nueva función para limpiar el estado del reproductor/póster de detalles (Fixes Issue 1 & 2)
-function resetDetailsPlayer() {
-    if (embeddedPlayerContainer) {
-        embeddedPlayerContainer.style.display = 'none';
-        embeddedPlayerContainer.innerHTML = '';
-    }
-    // Restablecer el área del póster a su estado predeterminado
-    detailsPosterTop.style.backgroundColor = 'transparent';
-    detailsPosterTop.style.backgroundImage = ''; // Limpiar la imagen de fondo incrustada
-    playButtonContainer.style.display = 'flex';
-}
-
 
 function showFreeAdModal(freeEmbedCode) {
     showModal(freeAdModal);
@@ -658,7 +672,7 @@ async function showDetailsScreen(item, type) {
             incrementViewCount(currentMovieOrSeries.tmdbId);
             
             // 2. Likes
-            const likeCount = await getLikeCount(currentMovieOrOrSeries.tmdbId);
+            const likeCount = await getLikeCount(currentMovieOrSeries.tmdbId);
             if (likeCountDisplay) {
                 likeCountDisplay.textContent = `${likeCount} Me Gusta`;
             }
@@ -674,6 +688,12 @@ async function showDetailsScreen(item, type) {
     } catch (error) {
         console.error("Error showing details:", error);
         alert('Hubo un error al cargar los detalles. Intenta de nuevo.');
+        
+        // ISSUE 2 FIX: Limpiar y volver al estado anterior al fallar la carga de detalles
+        resetDetailsPlayer();
+        history.back(); // Regresa al estado de lista de búsqueda
+        
+
     } finally {
         hideLoader();
     }
@@ -1097,8 +1117,9 @@ function switchScreen(screenId) {
 window.addEventListener('popstate', async (event) => {
     const state = event.state;
     
-    // ISSUE 1 FIX: Limpiar el reproductor y el área de detalles al regresar de CUALQUIER pantalla
+    // ISSUE 1 FIX: Limpiar modales flotantes y reproductor
     resetDetailsPlayer(); 
+    closeAllModals(); 
     
     if (state) {
         if (state.screen === 'details-screen') {
