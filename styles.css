@@ -21,6 +21,12 @@ body.dark-mode {
     --input-placeholder: #999;
 }
 
+/* Animación de color para el logo */
+@keyframes logo-color-animate {
+    0%, 100% { color: var(--text-color); }
+    50% { color: var(--red-highlight); } 
+}
+
 html, body {
     height: 100%;
     margin: 0;
@@ -105,6 +111,8 @@ body {
     font-weight: bold;
     letter-spacing: 1px;
     color: var(--text-color);
+    /* Aplicar la animación al logo (Problema 4) */
+    animation: logo-color-animate 4s infinite alternate;
 }
 
 .icon-button {
@@ -960,7 +968,7 @@ body {
 }
 
 .avatar-option.selected {
-    border-color: #fff;
+    border-color: var(--red-highlight);
 }
 
 .input-label {
