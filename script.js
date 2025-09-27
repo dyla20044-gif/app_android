@@ -151,6 +151,7 @@ let bannerInterval;
 let resumeAutoScrollTimeout;
 let currentUser = null;
 let currentMovieOrSeries = null;
+let currentFullTMDBItem = null; // Variable para guardar el objeto TMDB completo
 let lastSearchResults = [];
 
 // ======================================================================
@@ -437,12 +438,12 @@ async function renderLikeState(tmdbId) {
 async function handleLike(tmdbId) {
     if (!currentUser || currentUser.isAnonymous) {
         // FIX 1: Al requerir login, empujamos el estado actual (details) al historial
-        // para que authBackButton sepa a dónde regresar.
+        // Guardamos el objeto TMDB completo (currentFullTMDBItem) para la restauración.
         history.pushState({ 
             screen: 'auth-screen', 
             previousScreen: 'details-screen', 
-            previousItem: currentMovieOrSeries, 
-            previousType: currentMovieOrSeries.type
+            previousItem: currentFullTMDBItem, 
+            previousType: currentFullTMDBItem.type
         }, '', '');
         switchScreen('auth-screen');
         return;
@@ -904,6 +905,9 @@ async function showDetailsScreen(item, type) {
     resetDetailsPlayer();
 
     try {
+        // Guardamos el objeto TMDB completo que se está mostrando para la restauración del login
+        currentFullTMDBItem = item; 
+        
         const posterPath = item.backdrop_path || item.poster_path;
         const posterUrl = posterPath ? `https://image.tmdb.org/t/p/original${posterPath}` : 'https://placehold.co/500x750?text=No+Poster';
         
@@ -1228,7 +1232,7 @@ function renderGenresModal(type) {
         genreButton.textContent = currentGenres[id];
         genreButton.onclick = () => {
             fetchFromTMDB(`discover/${type}?with_genres=${id}`).then(items => {
-                renderGrid(type === 'movie' ? allMoviesGrid : allSeriesGrid, items, type);
+                renderGrid(allMoviesGrid, items, type);
                 document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
                 if (type === 'movie') moviesScreen.classList.add('active');
                 else seriesScreen.classList.add('active');
