@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInAnonymously, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, getDocs, query, where, addDoc, orderBy, limit, updateDoc, increment, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, getDocs, query, where, addDoc, orderBy, limit, updateDoc, setDoc, increment, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- Configuración de Firebase ---
 const firebaseConfig = {
@@ -384,8 +384,8 @@ async function incrementViewCount(tmdbId) {
     const itemRef = doc(db, 'movies', tmdbId.toString());
     
     try {
-        // Incrementa el contador global por cada clic (comportamiento solicitado)
-        await updateDoc(itemRef, {
+        // CORRECCIÓN CRÍTICA: Usar setDoc({merge: true}) para crear el documento si falta o actualizar el campo.
+        await setDoc(itemRef, {
             views: increment(1)
         }, { merge: true });
 
@@ -444,8 +444,6 @@ async function handleLike(tmdbId) {
     const hasLiked = await checkUserLiked(tmdbId);
     
     if (hasLiked) {
-        // Permite "unlike" si ya tiene like (mejora de UX)
-        // Lógica de unlike (Opcional, si el usuario solo quiere like una vez, se mantiene el alert)
         alert('Ya has dado "Me Gusta" a este contenido.');
         return;
     }
@@ -453,8 +451,8 @@ async function handleLike(tmdbId) {
     const itemRef = doc(db, 'movies', tmdbId.toString());
 
     try {
-        // 1. Incrementa el contador total
-        await updateDoc(itemRef, {
+        // 1. Incrementa el contador total (CORRECCIÓN CRÍTICA: Usar setDoc)
+        await setDoc(itemRef, {
             likes: increment(1) 
         }, { merge: true });
         
@@ -522,7 +520,7 @@ async function addMovieToHistory(item) {
     }
     try {
         const historyRef = collection(db, 'history');
-        // Esta consulta requiere un índice: userId + timestamp (desc)
+        // Esta consulta requiere un índice: userId + tmdbId
         const existingDocs = await getDocs(query(historyRef, where('userId', '==', auth.currentUser.uid), where('tmdbId', '==', item.id)));
         if (existingDocs.empty) {
             await addDoc(historyRef, {
@@ -832,7 +830,8 @@ function setupDetailsTabs(tmdbItem, type) {
                 
                 // Si la pestaña es 'Similares' (related-content-pane), renderizar el contenido
                 if (targetTabId === 'related-content-pane') {
-                     if (relatedMoviesContainer.children.length === 0) {
+                    // Carga forzada al hacer clic
+                    if (relatedMoviesContainer.children.length === 0) {
                         fetchRelatedContent(tmdbItem, type);
                     }
                 }
@@ -872,6 +871,7 @@ async function showDetailsScreen(item, type) {
     appContainer.scrollTo({ top: 0, behavior: 'smooth' });
     showLoader();
     
+    // LIMPIEZA INICIAL DE CONTENEDORES
     seasonsContainer.innerHTML = '';
     episodesContainer.innerHTML = '';
     seasonsContainer.style.display = 'none';
@@ -905,6 +905,7 @@ async function showDetailsScreen(item, type) {
         if (type === 'movie') {
             renderMoviePlayButtons(localData, item);
         } else if (type === 'tv') {
+            // FIX 2: La lógica de temporadas debe ejecutarse ANTES de la carga de pestañas
             await renderSeriesButtons(localData, item);
         }
         
@@ -930,6 +931,12 @@ async function showDetailsScreen(item, type) {
         
         // 4. Configurar TABS (Pestañas)
         setupDetailsTabs(item, type);
+        
+        // FIX 1: Carga forzada de Similares si es la pestaña activa por defecto
+        const defaultTab = document.querySelector('.tab-button[data-tab="related-content-pane"]');
+        if (defaultTab && defaultTab.classList.contains('active')) {
+             fetchRelatedContent(item, type);
+        }
 
 
     } catch (error) {
