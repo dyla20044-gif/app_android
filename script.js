@@ -121,6 +121,23 @@ const btnPostComment = document.getElementById('btn-post-comment');
 const commentsFeed = document.getElementById('comments-feed');
 const noCommentsMessage = document.getElementById('no-comments-message');
 
+// --- ELEMENTOS AGREGADOS PARA NUEVOS REQUERIMIENTOS ---
+// REQUERIMIENTO: Errores amigables
+const loginMessage = document.getElementById('login-message');
+const signupMessage = document.getElementById('signup-message');
+const requestMessage = document.getElementById('request-message');
+// REQUERIMIENTO: Notificaciones y Eventos
+const btnOpenNotifications = document.getElementById('btn-open-avisos'); // El botón de la campana
+const userNotificationsModal = document.getElementById('user-notifications-modal');
+const btnClearAllNotifications = document.getElementById('btn-clear-all-notifications');
+const notificationsClose = document.getElementById('notifications-close');
+const btnAddEvent = document.getElementById('btn-add-event');
+const addEventModal = document.getElementById('add-event-modal');
+const addEventForm = document.getElementById('add-event-form');
+const eventMessage = document.getElementById('event-message');
+const addEventClose = document.getElementById('add-event-close');
+const contentPublishingModal = document.getElementById('admin-avisos-modal'); // Reutilizando el modal para publicación
+const btnPubSaveNotify = document.getElementById('btn-save-notify-app-new'); // ID modificado en HTML para el nuevo botón
 
 let moviesData = [];
 let seriesData = [];
@@ -132,6 +149,114 @@ let resumeAutoScrollTimeout;
 let currentUser = null;
 let currentMovieOrSeries = null;
 let lastSearchResults = [];
+
+// ======================================================================
+// SIMULACIÓN DE DATOS Y LÓGICA DE NOTIFICACIONES (REQUERIMIENTO 1, 2, 3)
+// ======================================================================
+
+// SIMULACIÓN DE DATOS: En un entorno real, esto se cargaría de Firebase/backend.
+let notificationsData = [
+    // Ejemplo: Película añadida hace menos de 2 días
+    { id: 1, type: 'movie', title: '¡Nueva Película: El Guardián!', description: 'Película de acción añadida a la colección.', image: 'https://placehold.co/50x70?text=Movie', timestamp: Date.now() - (1000 * 60 * 60 * 12), isRead: false, targetScreen: 'details-screen' },
+    // Ejemplo: Evento añadido hace 1 día
+    { id: 2, type: 'event', title: 'Evento: Noche de Trivia de Cine', description: 'Únete a nuestra trivia en línea.', image: 'https://placehold.co/50x70?text=Event', timestamp: Date.now() - (1000 * 60 * 60 * 24), isRead: true, targetScreen: 'profile-screen' },
+    // Ejemplo: Notificación antigua (se eliminará automáticamente al cargar, más de 2 días)
+    { id: 3, type: 'movie', title: 'Película Antigua (A Borrar)', description: 'Esta notificación es de hace 3 días.', image: 'https://placehold.co/50x70?text=Old', timestamp: Date.now() - (1000 * 60 * 60 * 24 * 3), isRead: false, targetScreen: 'details-screen' }
+];
+
+// Función de utilidad para mostrar mensajes (Requerimiento de Errores Amigables)
+function showAppMessage(element, message, type) {
+    if (!element) return;
+    element.textContent = message;
+    element.className = `auth-message-box ${type}`;
+    element.style.display = 'block';
+    
+    // Ocultar después de 5 segundos
+    setTimeout(() => {
+        element.style.display = 'none';
+    }, 5000);
+}
+
+// Actualiza el indicador (punto rojo/número) y aplica la limpieza de 2 días (REQUERIMIENTO 2)
+function updateNotificationIndicator() {
+    const twoDaysInMs = 1000 * 60 * 60 * 24 * 2;
+    // 1. ELIMINACIÓN AUTOMÁTICA (REQUERIMIENTO 2)
+    notificationsData = notificationsData.filter(n => (Date.now() - n.timestamp) <= twoDaysInMs);
+
+    const unreadCount = notificationsData.filter(n => !n.isRead).length;
+    const indicatorElement = document.getElementById('notification-indicator');
+    
+    if (indicatorElement) {
+        if (unreadCount > 0) {
+            indicatorElement.textContent = unreadCount > 9 ? '9+' : unreadCount.toString();
+            indicatorElement.classList.remove('hidden');
+        } else {
+            indicatorElement.classList.add('hidden');
+        }
+    }
+}
+
+// Renderiza las notificaciones en el modal (REQUERIMIENTO 2)
+function renderNotifications() {
+    const listElement = document.getElementById('notifications-list');
+    const emptyMessage = document.getElementById('empty-notifications-message');
+    const clearButton = document.getElementById('btn-clear-all-notifications');
+    if (!listElement || !emptyMessage || !clearButton) return;
+    
+    listElement.innerHTML = '';
+    
+    if (notificationsData.length === 0) {
+        // Estado de la campanita: sin notificaciones (REQUERIMIENTO 4)
+        emptyMessage.classList.remove('hidden');
+        clearButton.classList.add('hidden');
+        return;
+    }
+    
+    emptyMessage.classList.add('hidden');
+    clearButton.classList.remove('hidden');
+
+    notificationsData.forEach(notification => {
+        const item = document.createElement('div');
+        item.className = `notification-item ${!notification.isRead ? 'unread' : ''}`;
+        
+        // Formatea el timestamp a una cadena de fecha simple
+        const timeString = new Date(notification.timestamp).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
+        item.innerHTML = `
+            <img src="${notification.image}" alt="${notification.title}" onerror="this.onerror=null;this.src='https://placehold.co/50x70?text=IMG'">
+            <div class="notification-item-text">
+                <strong>${notification.title}</strong>
+                <small>${notification.description} - ${timeString}</small>
+            </div>
+        `;
+        
+        // Listener: al presionar, marca como leído y navega
+        item.addEventListener('click', () => {
+            // Marcar como leído
+            const notifIndex = notificationsData.findIndex(n => n.id === notification.id);
+            if (notifIndex !== -1 && !notificationsData[notifIndex].isRead) {
+                notificationsData[notifIndex].isRead = true;
+                updateNotificationIndicator(); 
+            }
+            closeModal(userNotificationsModal);
+            // Simulación de navegación a pantalla objetivo
+            if (notification.targetScreen && notification.targetScreen !== 'events-screen') {
+                // Para películas, simulamos mostrar detalles
+                switchScreen(notification.targetScreen); 
+            } else if (notification.targetScreen === 'events-screen') {
+                // Aquí podrías llevar a una pantalla de eventos real
+                alert(`Navegando al evento: ${notification.title}`);
+                // switchScreen('events-screen'); 
+            }
+        });
+        
+        listElement.appendChild(item);
+    });
+}
+// ======================================================================
+// FIN: LÓGICA DE NOTIFICACIONES
+// ======================================================================
+
 
 // --- Funciones para manejar Modales y Carga ---
 function closeModal(modal) {
@@ -161,8 +286,13 @@ function closeAllModals() {
         document.getElementById('payment-modal'),
         document.getElementById('free-ad-modal'),
         document.getElementById('pro-restriction-modal'),
-        document.getElementById('download-app-modal')
-    ];
+        document.getElementById('download-app-modal'),
+        // Añadir los nuevos modales
+        userNotificationsModal,
+        addEventModal,
+        contentPublishingModal
+    ].filter(Boolean); // Filtrar nulls
+
     modalsToClose.forEach(modal => closeModal(modal));
 }
 
@@ -456,7 +586,15 @@ function renderRequestButton(tmdbItem) {
                 })
             });
             if (response.ok) {
-                alert('¡Solicitud enviada! Nos pondremos a trabajar en ello.');
+                // REEMPLAZO DE ALERT POR showAppMessage
+                const successMsg = "Tu solicitud fue enviada. Si eres usuario gratuito, espera 3 a 6 horas. Si eres usuario premium, espera alrededor de 2 horas.";
+                // Necesitas el elemento de mensaje de solicitud visible en la pantalla de detalles o en la pantalla de solicitud
+                const detailsRequestMessage = document.getElementById('details-request-message');
+                if (detailsRequestMessage) {
+                    showAppMessage(detailsRequestMessage, successMsg, 'success');
+                } else {
+                    alert(successMsg);
+                }
             } else {
                 alert('Hubo un error al enviar la solicitud. Intenta de nuevo.');
             }
@@ -504,7 +642,7 @@ async function getLikeCount(tmdbId) {
 
 async function handleLike(tmdbId) {
     if (!currentUser || currentUser.isAnonymous) {
-        alert('Debes iniciar sesión para dar "Me Gusta".');
+        // REEMPLAZO DE ALERT POR switchScreen
         switchScreen('auth-screen');
         return;
     }
@@ -546,7 +684,7 @@ if (btnLikeMovie) {
 
 async function postComment(tmdbId, text) {
     if (!currentUser || currentUser.isAnonymous) {
-        alert('Debes iniciar sesión para comentar.');
+        // REEMPLAZO DE ALERT POR switchScreen
         switchScreen('auth-screen');
         return;
     }
@@ -1086,6 +1224,11 @@ function switchScreen(screenId) {
     } else if (screenId === 'favorites-screen') {
         fetchFavorites();
         searchFilters.style.display = 'none';
+    } else if (screenId === 'events-screen') {
+        // Simulación: Pantalla de Eventos (aún no implementada, pero necesaria para la navegación)
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('profile-screen').classList.add('active'); // O podríamos crear una events-screen
+        searchFilters.style.display = 'none';
     }
     
     // 2. Visibilidad de Navs
@@ -1112,8 +1255,9 @@ function switchScreen(screenId) {
     } else {
         // Estado normal: top-nav visible
         topNav.style.display = 'flex';
-        // Mostrar la barra inferior solo en las 3 pantallas principales Y detalles (solicitud del usuario)
-        if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen' || screenId === 'details-screen') { // ADDED 'details-screen'
+        // Mostrar la barra inferior en las 3 pantallas principales, Perfil, Detalles y Eventos.
+        // Se ha ELIMINADO la necesidad del botón de retroceso en el perfil.
+        if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen' || screenId === 'profile-screen' || screenId === 'details-screen' || screenId === 'events-screen') { 
             bottomNav.style.display = 'flex';
             appContainer.style.paddingBottom = '70px';
         } else {
@@ -1368,17 +1512,17 @@ async function playAd() {
     });
 }
 
+// MODIFICACIÓN: Uso de showAppMessage para mensajes de éxito/error (REQUERIMIENTO 3)
 submitRequestButton.addEventListener('click', async (e) => {
     e.preventDefault();
     if (!auth.currentUser || auth.currentUser.isAnonymous) {
-        alert('Debes iniciar sesión para solicitar un contenido.');
         switchScreen('auth-screen');
         return;
     }
 
     const movieTitle = movieRequestInput.value.trim();
     if (movieTitle === '') {
-        alert('Por favor, ingresa el título de la película.');
+        showAppMessage(requestMessage, 'Por favor, ingresa el título de la película.', 'error');
         return;
     }
 
@@ -1389,11 +1533,14 @@ submitRequestButton.addEventListener('click', async (e) => {
             movieTitle: movieTitle,
             requestedAt: new Date()
         });
-        alert('¡Solicitud enviada! Gracias por tu sugerencia.');
+        
+        // Mensaje amigable con tiempo de espera específico
+        const successMsg = "Tu solicitud fue enviada. Si eres usuario gratuito, espera 3 a 6 horas. Si eres usuario premium, espera alrededor de 2 horas.";
+        showAppMessage(requestMessage, successMsg, 'success');
         movieRequestInput.value = '';
     } catch (e) {
         console.error("Error adding movie request: ", e);
-        alert('No se pudo enviar la solicitud. Intenta de nuevo.');
+        showAppMessage(requestMessage, 'No se pudo enviar la solicitud. Intenta de nuevo más tarde.', 'error');
     }
 });
 
@@ -1491,36 +1638,53 @@ showLoginLink.addEventListener('click', (e) => {
     loginForm.classList.add('active-form');
 });
 
+// MODIFICACIÓN: Uso de showAppMessage para errores (REQUERIMIENTO 3)
 signupButton.addEventListener('click', async () => {
+    signupMessage.style.display = 'none'; // Limpiar mensaje anterior
     const email = signupEmailInput.value;
     const password = signupPasswordInput.value;
     const termsAccepted = document.getElementById('terms-checkbox').checked;
 
     if (!termsAccepted) {
-        alert('Debes aceptar los términos y condiciones para continuar.');
+        showAppMessage(signupMessage, 'Debes aceptar los términos y condiciones para continuar.', 'error');
         return;
     }
     
     try {
         await createUserWithEmailAndPassword(auth, email, password);
+        showAppMessage(signupMessage, '¡Registro exitoso! Por favor, activa tu Cuenta Premium.', 'success');
         switchScreen('profile-screen');
         showModal(paymentModal);
     } catch (error) {
         console.error("Signup error:", error);
-        alert(`Error al registrarse: ${error.message}`);
+        let userMessage = 'Error al registrarse. Intenta de nuevo.';
+        if (error.code === 'auth/email-already-in-use') {
+             userMessage = 'Este correo ya está registrado. ¿Quieres iniciar sesión?';
+        } else if (error.code === 'auth/weak-password') {
+             userMessage = 'La contraseña debe tener al menos 6 caracteres.';
+        }
+        showAppMessage(signupMessage, userMessage, 'error'); // Mostrar error en la caja
     }
 });
 
+// MODIFICACIÓN: Uso de showAppMessage para errores (REQUERIMIENTO 3)
 loginButton.addEventListener('click', async () => {
+    loginMessage.style.display = 'none'; // Limpiar mensaje anterior
     const email = loginEmailInput.value;
     const password = loginPasswordInput.value;
     try {
         await signInWithEmailAndPassword(auth, email, password);
-        alert('¡Inicio de sesión exitoso!');
+        showAppMessage(loginMessage, '¡Inicio de sesión exitoso!', 'success');
         switchScreen('profile-screen');
     } catch (error) {
         console.error("Login error:", error);
-        alert(`Error al iniciar sesión: ${error.message}`);
+        let userMessage = 'Error al iniciar sesión. Intenta de nuevo.';
+        if (error.code === 'auth/invalid-email' || error.code === 'auth/user-not-found') {
+            userMessage = 'Correo no registrado o inválido.';
+        } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+            userMessage = 'Contraseña incorrecta.';
+        }
+        showAppMessage(loginMessage, userMessage, 'error'); // Mostrar error en la caja
     }
 });
 
@@ -1582,6 +1746,120 @@ signoutButton.addEventListener('click', async () => {
         alert('No se pudo cerrar sesión. Intenta de nuevo.');
     }
 });
+
+// --- LISTENERS DE NOTIFICACIONES Y EVENTOS (REQUERIMIENTO 1, 2) ---
+
+// Listener para abrir el modal de Notificaciones (Campanita)
+if (btnOpenNotifications) {
+    btnOpenNotifications.addEventListener('click', () => {
+        renderNotifications(); // Carga las notificaciones antes de abrir
+        showModal(userNotificationsModal);
+    });
+}
+// Listener para cerrar el modal
+if (notificationsClose) {
+    notificationsClose.addEventListener('click', () => {
+        closeModal(userNotificationsModal);
+    });
+}
+
+// Listener para BORRAR TODAS las notificaciones (REQUERIMIENTO 2)
+if (btnClearAllNotifications) {
+    btnClearAllNotifications.addEventListener('click', () => {
+        if (confirm('¿Estás seguro de que quieres borrar todas tus notificaciones?')) {
+            notificationsData = []; // Borrar localmente (Simulación de borrado en DB)
+            renderNotifications(); // Volver a renderizar (mostrará el mensaje de vacío)
+            updateNotificationIndicator(); // Quitar el punto/número
+            alert('Se han borrado todas tus notificaciones.');
+        }
+    });
+}
+
+// AGREGAR EVENTO (REQUERIMIENTO 1)
+const btnOpenEvents = document.getElementById('btn-open-events');
+if (btnOpenEvents) {
+    btnOpenEvents.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchScreen('profile-screen'); // Simplemente navega al perfil para ver los botones
+    });
+}
+
+if (btnAddEvent) {
+    btnAddEvent.addEventListener('click', () => {
+        showModal(addEventModal);
+    });
+}
+if (addEventClose) {
+    addEventClose.addEventListener('click', () => {
+        closeModal(addEventModal);
+    });
+}
+if (addEventForm) {
+    addEventForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        eventMessage.style.display = 'none'; // Limpiar mensaje
+        
+        const imageLink = document.getElementById('event-image-link').value.trim();
+        const description = document.getElementById('event-description').value.trim();
+        
+        if (!imageLink || !description) {
+            showAppMessage(eventMessage, 'Por favor, llena todos los campos.', 'error');
+            return;
+        }
+        
+        // Simulación de guardar en la DB (REQUERIMIENTO 1)
+        const newEvent = {
+            id: Date.now(),
+            type: 'event',
+            title: 'Nuevo Evento Publicado',
+            description: description,
+            image: imageLink,
+            timestamp: Date.now(),
+            isRead: false,
+            targetScreen: 'profile-screen' // Cambiado a profile-screen para simular la navegación simple
+        };
+        
+        notificationsData.push(newEvent); // Agregar a la data
+        updateNotificationIndicator(); // **Automáticamente debe aparecer notificación en campanita**
+        
+        showAppMessage(eventMessage, 'Guardado con éxito.', 'success');
+        document.getElementById('event-image-link').value = '';
+        document.getElementById('event-description').value = '';
+        
+        setTimeout(() => closeModal(addEventModal), 1500); // Cerrar después del éxito
+    });
+}
+
+// PUBLICAR PELÍCULA Y NOTIFICAR (REQUERIMIENTO 3)
+if (btnPubSaveNotify) {
+    btnPubSaveNotify.addEventListener('click', () => {
+        const embedLink = document.getElementById('admin-embed-input').value;
+
+        if (!embedLink) {
+            alert("Por favor, ingresa el enlace del reproductor.");
+            return;
+        }
+
+        // Simulación de guardar y crear notificación
+        const newMovieNotif = {
+            id: Date.now(),
+            type: 'movie',
+            title: `¡Nueva Película con link ${embedLink.substring(0, 10)}...!`,
+            description: 'Se ha añadido una nueva película a la app y se ha notificado.',
+            image: 'https://placehold.co/50x70?text=NewMovie',
+            timestamp: Date.now(),
+            isRead: false,
+            targetScreen: 'details-screen' 
+        };
+        
+        notificationsData.push(newMovieNotif);
+        updateNotificationIndicator();
+        
+        alert('Película guardada y notificación enviada a los usuarios. (Simulado)');
+        closeModal(contentPublishingModal); 
+    });
+}
+
 
 let isInitialized = false;
 onAuthStateChanged(auth, async (user) => {
@@ -1647,6 +1925,7 @@ onAuthStateChanged(auth, async (user) => {
         
         await fetchAllGenres('movie');
         await fetchAllGenres('tv');
+        updateNotificationIndicator(); // Inicializar el indicador de notificaciones
         switchScreen('home-screen');
     }
 });
