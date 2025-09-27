@@ -23,10 +23,7 @@
             </button>
             <button id="btn-open-search" class="icon-button search-icon-button" aria-label="Abrir búsqueda"><i class="fas fa-search"></i></button>
             <button id="btn-toggle-theme" class="icon-button" aria-label="Tema Dual"><i class="fas fa-moon"></i></button>
-            <a href="#" class="nav-item-profile" data-screen="profile-screen" id="top-profile-link" aria-label="Mi Perfil">
-                <i class="fas fa-user"></i>
-            </a>
-        </div>
+            </div>
     </header>
 
     <div class="search-overlay" id="search-overlay">
@@ -259,8 +256,12 @@
                         </div>
                     </div>
                     <div class="movie-metadata">
-                        <span id="details-year"></span>
-                        <span id="details-genres"></span>
+                        <div class="movie-metrics">
+                            <span id="view-count-display"><i class="fas fa-eye"></i> 0 Vistas</span>
+                            <span id="like-count-display-text"><i class="fas fa-heart"></i> 0 Me Gusta</span>
+                            <span id="details-year"></span>
+                            <span id="details-genres"></span>
+                        </div>
                     </div>
                     <p id="details-sinopsis"></p>
                     <button id="read-more-button" class="text-button">Ver más</button>
@@ -269,33 +270,38 @@
                         <p>Actores: <span id="actors-list"></span></p>
                     </div>
 
-                    <div id="social-section" class="social-section">
-                        <div class="social-stats">
-                            <span id="view-count-display"><i class="fas fa-eye"></i> 0 Vistas</span>
+                    <div class="tabs-container">
+                        <div class="tabs-header" id="details-tabs-header">
+                            <button class="tab-button active" data-tab="comments-tab">Comentarios</button>
+                            <button class="tab-button" data-tab="related-tab">Similares</button>
                         </div>
                         
-                        <div class="social-actions">
-                            <button id="btn-like-movie" class="like-button"><i class="far fa-heart"></i> <span id="like-count">0</span> Me Gusta</button>
-                        </div>
-
-                        <div class="comments-container">
-                            <h3>Comentarios</h3>
-                            <div class="comment-input-area">
-                                <input type="text" id="comment-input" placeholder="Escribe un comentario...">
-                                <button id="btn-post-comment" class="button primary"><i class="fas fa-paper-plane"></i></button>
+                        <div class="tabs-content" id="details-tabs-content">
+                            <div class="tab-pane active" id="comments-tab">
+                                <div class="social-actions">
+                                    <button id="btn-like-movie" class="like-button"><i class="far fa-heart"></i> Me Gusta</button>
+                                </div>
+                                <div class="comments-container">
+                                    <h3>Comentarios</h3>
+                                    <div class="comment-input-area">
+                                        <input type="text" id="comment-input" placeholder="Escribe un comentario...">
+                                        <button id="btn-post-comment" class="button primary"><i class="fas fa-paper-plane"></i></button>
+                                    </div>
+                                    <div id="comments-feed" class="comments-feed">
+                                        <p id="no-comments-message" style="color:#888; display:none;">Sé el primero en comentar.</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div id="comments-feed" class="comments-feed">
-                                <p id="no-comments-message" style="color:#888; display:none;">Sé el primero en comentar.</p>
+                            
+                            <div class="tab-pane" id="related-tab">
+                                <section class="related-section">
+                                    <div id="related-movies" class="movie-list horizontal-scroll"></div>
+                                </section>
                             </div>
                         </div>
                     </div>
                     <div id="seasons-container" class="episode-select-container" style="display:none;"></div>
                     <div id="episodes-container"></div>
-
-                    <section class="related-section">
-                        <h3>También podría gustarte</h3>
-                        <div id="related-movies" class="movie-list horizontal-scroll"></div>
-                    </section>
                 </div>
             </div>
         </div>
@@ -352,6 +358,10 @@
         <a href="#" class="nav-item" data-screen="series-screen">
             <i class="fas fa-tv"></i>
             <span>Series</span>
+        </a>
+        <a href="#" class="nav-item" data-screen="profile-screen">
+            <i class="fas fa-user"></i>
+            <span>Perfil</span>
         </a>
     </nav>
 
