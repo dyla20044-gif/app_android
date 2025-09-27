@@ -154,6 +154,35 @@ body {
     opacity: 0.9;
 }
 
+/* REQUERIMIENTO 2: Indicador de Notificación (AJUSTADO A PUNTO ROJO) */
+#btn-open-avisos {
+    position: relative;
+    background: none;
+    border: none;
+    color: var(--icon-color);
+    font-size: 1.2em; 
+    cursor: pointer;
+}
+#notification-indicator {
+    position: absolute;
+    top: 0px; /* Ajustado para estar en la esquina superior derecha de la campana */
+    right: -4px; /* Ajustado para superponerse ligeramente */
+    background-color: var(--red-highlight);
+    color: transparent; /* Hacemos el texto transparente */
+    border-radius: 50%;
+    width: 8px; /* Reducimos a un punto */
+    height: 8px; /* Reducimos a un punto */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0; /* Aseguramos que no haya texto */
+    padding: 0;
+    border: 2px solid var(--nav-bg); /* Borde para que se vea sobre la campana */
+}
+.indicator.hidden {
+    display: none !important;
+}
+
 /* Overlay de Búsqueda */
 .search-overlay {
     position: fixed;
@@ -1527,7 +1556,7 @@ body {
     line-height: 1.4;
     color: var(--text-color);
 }
-/* REQUERIMIENTO 2: Indicador de Notificación */
+/* REQUERIMIENTO 2: Indicador de Notificación (AJUSTADO A PUNTO ROJO) */
 #btn-open-avisos {
     position: relative;
     background: none;
@@ -1538,19 +1567,19 @@ body {
 }
 #notification-indicator {
     position: absolute;
-    top: -5px;
-    right: -5px;
+    top: 0px; 
+    right: -4px; 
     background-color: var(--red-highlight);
-    color: white;
+    color: transparent; 
     border-radius: 50%;
-    width: 18px;
-    height: 18px;
+    width: 8px; 
+    height: 8px; 
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7em;
-    font-weight: bold;
-    padding: 2px;
+    font-size: 0; 
+    padding: 0;
+    border: 2px solid var(--nav-bg); 
 }
 .indicator.hidden {
     display: none !important;
@@ -1682,6 +1711,4 @@ body {
     border-radius: 8px;
     color: var(--text-color);
     font-size: 1em;
-}
-
 }
