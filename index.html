@@ -252,13 +252,15 @@
                         <h2 id="details-title"></h2>
                         <div class="movie-actions">
                             <i id="share-button" class="fas fa-share-alt"></i>
-                            <i id="favorite-button" class="fas fa-heart"></i>
+                            <i id="favorite-button" class="far fa-heart"></i>
                         </div>
                     </div>
                     <div class="movie-metadata">
                         <div class="movie-metrics">
                             <span id="view-count-display"><i class="fas fa-eye"></i> 0 Vistas</span>
                             <span id="like-count-display-text"><i class="fas fa-heart"></i> 0 Me Gusta</span>
+                        </div>
+                        <div class="movie-attributes">
                             <span id="details-year"></span>
                             <span id="details-genres"></span>
                         </div>
@@ -272,15 +274,18 @@
 
                     <div class="tabs-container">
                         <div class="tabs-header" id="details-tabs-header">
-                            <button class="tab-button active" data-tab="comments-tab">Comentarios</button>
-                            <button class="tab-button" data-tab="related-tab">Similares</button>
+                            <button class="tab-button active" data-tab="related-content-pane">Similares</button>
+                            <button class="tab-button" data-tab="comments-content-pane">Comentarios</button>
                         </div>
                         
                         <div class="tabs-content" id="details-tabs-content">
-                            <div class="tab-pane active" id="comments-tab">
-                                <div class="social-actions">
-                                    <button id="btn-like-movie" class="like-button"><i class="far fa-heart"></i> Me Gusta</button>
-                                </div>
+                            <div class="tab-pane active" id="related-content-pane">
+                                <section class="related-section">
+                                    <div id="related-movies" class="movie-list horizontal-scroll"></div>
+                                </section>
+                            </div>
+                            
+                            <div class="tab-pane" id="comments-content-pane">
                                 <div class="comments-container">
                                     <h3>Comentarios</h3>
                                     <div class="comment-input-area">
@@ -291,12 +296,6 @@
                                         <p id="no-comments-message" style="color:#888; display:none;">Sé el primero en comentar.</p>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <div class="tab-pane" id="related-tab">
-                                <section class="related-section">
-                                    <div id="related-movies" class="movie-list horizontal-scroll"></div>
-                                </section>
                             </div>
                         </div>
                     </div>
