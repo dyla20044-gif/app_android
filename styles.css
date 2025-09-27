@@ -14,6 +14,8 @@
     --secondary-text-color: #777;
     --border-color: #ccc;
     --input-background-color: #e0e0e0;
+    /* Nueva variable para el color del texto del logo */
+    --logo-text-color: #1a1a1a;
 }
 
 body.dark-mode {
@@ -31,13 +33,12 @@ body.dark-mode {
     --secondary-text-color: #aaa;
     --border-color: #333;
     --input-background-color: #262626;
+    /* Nueva variable para el color del texto del logo */
+    --logo-text-color: #ffffff;
 }
 
-/* Animación de color para el logo */
-@keyframes logo-color-animate {
-    0%, 100% { color: var(--text-color); }
-    50% { color: var(--red-highlight); } 
-}
+/* Animación anterior ELIMINADA y reemplazada por el estilo estático del logo */
+/* @keyframes logo-color-animate { ... } */
 
 html, body {
     height: 100%;
@@ -71,7 +72,7 @@ body {
     display: block;
 }
 
-/* Loader */
+/* REQUERIMIENTO 2: Nuevo Loader Animado */
 #loader {
     position: fixed;
     top: 0;
@@ -85,17 +86,49 @@ body {
     align-items: center;
     z-index: 10000;
 }
-.loader-spinner {
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top: 4px solid #fff;
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
+.custom-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
 }
+/* Estilo base del ícono de la cámara para el loader */
+.custom-loader .animated-logo-icon {
+    /* Usamos el ícono de la cámara de Font Awesome (que será el fondo) */
+    font-family: 'Font Awesome 5 Free';
+    content: "\f03d"; /* Ícono de cámara de video */
+    font-size: 3em;
+    color: #ffffff;
+    
+    /* Crear el círculo rojo alrededor */
+    background-color: var(--red-highlight);
+    border-radius: 50%;
+    width: 70px;
+    height: 70px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    /* Animación del giro y latido */
+    animation: pulse 1.5s infinite alternate, spin 2s linear infinite; 
+}
+.custom-loader p {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #ffffff;
+    margin: 0;
+}
+
+/* Animación de giro para el loader */
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+/* Animación de latido (pulse) para darle más vida */
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 9, 20, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(229, 9, 20, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 9, 20, 0); }
 }
 
 /* REQUERIMIENTO 1: Barra de navegación superior (Rediseño) */
@@ -118,13 +151,34 @@ body {
     gap: 15px;
 }
 
+/* Estilo del contenedor del nuevo logo */
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+/* Estilo del ícono de cámara del nuevo logo (en la barra superior) */
+.new-logo-icon {
+    font-family: 'Font Awesome 5 Free';
+    content: "\f03d"; /* Ícono de cámara de video */
+    font-size: 1.2em;
+    color: #ffffff;
+    background-color: var(--red-highlight);
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .top-nav .logo-text {
     font-size: 1.6em;
     font-weight: bold;
     letter-spacing: 1px;
-    color: var(--text-color);
-    /* Aplicar la animación al logo (Problema 4) */
-    animation: logo-color-animate 4s infinite alternate;
+    /* Usamos la nueva variable del tema */
+    color: var(--logo-text-color); 
+    /* Eliminamos la animación anterior */
 }
 
 .icon-button {
@@ -283,6 +337,23 @@ body {
     padding: 20px;
 }
 
+/* REQUERIMIENTO 3: Barra de Información del Carrusel */
+.banner-info-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    /* Altura necesaria para título y detalles */
+    height: 80px; 
+    background: rgba(0, 0, 0, 0.6); /* Fondo semi-transparente oscuro */
+    backdrop-filter: blur(5px); /* Efecto cristal para el fondo */
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
 .banner-item::after {
     content: '';
     position: absolute;
@@ -290,8 +361,59 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
+    /* Degradado oscuro solo en la parte superior del banner */
     background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 100%);
+    /* Aseguramos que el degradado esté DEBAJO de la barra de información */
+    z-index: 9; 
 }
+.banner-info-content {
+    /* Ajustamos el contenido para que no se superponga con la barra de info */
+    position: relative;
+    z-index: 11; 
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    height: 100%;
+    padding-bottom: 90px; /* Espacio para que el botón de play antiguo no interfiera */
+}
+.banner-info-text {
+    position: relative;
+    z-index: 12;
+    display: flex;
+    flex-direction: column;
+    /* Asegura que el texto esté visible sobre el fondo */
+    color: #ffffff;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+}
+.banner-info-text h3 {
+    font-size: 1.5em;
+    margin: 0;
+}
+.banner-info-text p {
+    font-size: 0.9em;
+    margin: 5px 0 0 0;
+    color: #cccccc;
+}
+
+.banner-play-icon {
+    background-color: var(--red-highlight);
+    border: none;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    color: #ffffff;
+    font-size: 1.5em;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 15;
+    transition: background-color 0.2s;
+}
+.banner-play-icon:hover {
+    background-color: #ff3333;
+}
+
 
 .banner-buttons-container {
     position: relative;
@@ -300,32 +422,8 @@ body {
     flex-direction: column;
     gap: 5px;
     margin-bottom: 10px;
-}
-.banner-button {
-    background-color: rgba(255, 255, 255, 0.2);
-    color: var(--text-color);
-    border: 1px solid var(--text-color);
-    padding: 8px 15px;
-    border-radius: 20px;
-    font-size: 0.9em;
-    cursor: pointer;
-    backdrop-filter: blur(5px);
-    transition: background-color 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-}
-.banner-button.red {
-    background-color: var(--red-highlight);
-    color: #ffffff;
-    border: none;
-}
-.banner-button:hover {
-    background-color: rgba(255, 255, 255, 0.4);
-}
-.banner-button.red:hover {
-    background-color: rgba(255, 51, 51, 0.9);
+    /* OCULTAMOS los botones de abajo para usar la nueva barra de información */
+    display: none !important;
 }
 
 .pro-badge {
