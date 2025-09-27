@@ -486,7 +486,16 @@ body {
     left: 0;
     width: 100%;
     z-index: 50;
+    transition: height 0.3s ease, opacity 0.3s ease; /* Para una animación fluida */
 }
+
+/* FIX 2: Clase para ocultar el banner al escribir comentarios */
+#details-screen.writing-comment .details-header-section {
+    height: 0;
+    opacity: 0;
+    pointer-events: none; /* Deshabilita clics en el área oculta */
+}
+
 
 #details-poster-top {
     width: 100%;
@@ -497,7 +506,14 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    transition: height 0.3s ease; /* Transición para que no desaparezca de golpe */
 }
+/* Al escribir comentarios, el poster fijo desaparece (altura 0) */
+#details-screen.writing-comment #details-poster-top {
+    height: 0;
+}
+
+
 /* Nuevo estilo para el contenedor del reproductor incrustado */
 #embedded-player-container {
     width: 100%;
@@ -550,7 +566,14 @@ body {
     overflow-y: auto;
     flex-grow: 1;
     padding-top: 226px;
+    transition: padding-top 0.3s ease;
 }
+
+/* Ajusta el contenido deslizable para llenar el espacio cuando el banner desaparece */
+#details-screen.writing-comment .details-content-scrollable {
+    padding-top: 0;
+}
+
 
 .details-info-section {
     padding: 20px;
