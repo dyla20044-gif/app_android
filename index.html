@@ -17,8 +17,11 @@
             <button id="btn-download-app" class="icon-button" aria-label="Descargar aplicación"><i class="fas fa-mobile-alt"></i></button>
         </div>
         <div class="nav-right">
+            <button id="btn-open-avisos" class="icon-button" aria-label="Notificaciones">
+                <i class="fas fa-bell"></i>
+                <span id="notification-indicator" class="indicator hidden"></span>
+            </button>
             <button id="btn-open-search" class="icon-button search-icon-button" aria-label="Abrir búsqueda"><i class="fas fa-search"></i></button>
-            <button id="btn-open-avisos" class="icon-button" aria-label="Notificaciones"><i class="fas fa-bell"></i></button>
             <button id="btn-toggle-theme" class="icon-button" aria-label="Tema Dual"><i class="fas fa-moon"></i></button>
             <a href="#" class="nav-item-profile" data-screen="profile-screen" id="top-profile-link" aria-label="Mi Perfil">
                 <i class="fas fa-user"></i>
@@ -139,9 +142,11 @@
                     <button id="signout-button" class="icon-button"><i class="fas fa-sign-out-alt"></i></button>
                 </div>
                 <div class="profile-options">
-                    <button id="pro-status-button" class="button profile-button"><i class="fas fa-crown"></i> <span>Activar Cuenta Pro</span></button>
+                    <button id="pro-status-button" class="button profile-button"><i class="fas fa-crown"></i> <span>Activar Cuenta Premium</span></button>
                     <button id="favorites-button" class="button secondary profile-button" data-screen="favorites-screen"><i class="fas fa-heart"></i> <span>Mis Favoritos</span></button>
                     <button id="request-button" class="button secondary profile-button" data-screen="request-screen"><i class="fas fa-plus-circle"></i> <span>Solicitar Película</span></button>
+                    <button id="btn-add-event" class="button secondary profile-button"><i class="fas fa-calendar-plus"></i> <span>Agregar Evento</span></button>
+                    <button id="btn-open-events" class="button secondary profile-button"><i class="fas fa-calendar-alt"></i> <span>Eventos</span></button>
                     <button id="settings-button" class="button secondary profile-button" data-screen="settings-screen"><i class="fas fa-cog"></i> <span>Configuración</span></button>
                 </div>
             </div>
@@ -181,6 +186,7 @@
             <div class="screen-header">
                 <h2>Solicitar Película</h2>
             </div>
+            <div id="request-message" class="request-message-box"></div>
             <div class="request-form">
                 <input type="text" id="movie-request-input" placeholder="Nombre de la película o serie...">
                 <button id="submit-request-button" class="button">Enviar Solicitud</button>
@@ -246,6 +252,7 @@
             </div>
             <div class="details-content-scrollable">
                 <div class="details-info-section">
+                    <div id="details-request-message" class="request-message-box"></div>
                     <div class="movie-header">
                         <h2 id="details-title"></h2>
                         <div class="movie-actions">
@@ -304,6 +311,7 @@
             <div class="auth-content-container">
                 <div id="login-form" class="auth-form active-form">
                     <h2 class="auth-title">Inicia sesión</h2>
+                    <div id="login-message" class="auth-message-box"></div>
                     <input type="email" id="login-email" placeholder="Correo electrónico">
                     <div class="password-container">
                         <input type="password" id="login-password" placeholder="Contraseña">
@@ -316,6 +324,7 @@
                 </div>
                 <div id="signup-form" class="auth-form">
                     <h2 class="auth-title">Crea tu cuenta</h2>
+                    <div id="signup-message" class="auth-message-box"></div>
                     <input type="email" id="signup-email" placeholder="ejemplo@email.com">
                     <div class="password-container">
                         <input type="password" id="signup-password" placeholder="Contraseña">
@@ -425,6 +434,49 @@
             <div class="modal-buttons-ad">
                 <button id="pro-modal-cta" class="button red">Ver ahora PRO</button>
             </div>
+        </div>
+    </div>
+
+    <div id="user-notifications-modal" class="modal-from-bottom">
+        <div class="modal-content notifications-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Notificaciones</h2>
+                <span class="close-button" id="notifications-close">&times;</span>
+            </div>
+            
+            <div id="notifications-list" class="notifications-list">
+                <p id="empty-notifications-message" class="empty-message hidden">Por el momento no tienes notificaciones.</p>
+            </div>
+
+            <button id="btn-clear-all-notifications" class="button secondary full-width mt-10 hidden">Borrar todas</button>
+        </div>
+    </div>
+
+    <div id="add-event-modal" class="modal-from-bottom">
+        <div class="modal-content auth-content">
+            <span class="close-button" id="add-event-close">&times;</span>
+            <h2 class="auth-title">Agregar Evento</h2>
+            <div id="event-message" class="auth-message-box"></div> 
+            <form id="add-event-form">
+                <input type="url" id="event-image-link" placeholder="Enlace de la fotografía (URL)" required>
+                <textarea id="event-description" placeholder="Descripción del evento" required rows="4"></textarea>
+                <button type="submit" id="btn-submit-event" class="button primary">Guardar Evento</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="admin-avisos-modal" class="modal-from-bottom">
+        <div class="modal-content admin-avisos-content">
+            <span class="close-button" id="avisos-close">&times;</span>
+            <h2 class="modal-title-ad">Publicar Contenido (Admin)</h2>
+            <p class="modal-text-ad">Ingrese el link del reproductor y elija la acción:</p>
+            <input type="text" id="admin-embed-input" placeholder="Enlace del Reproductor (ej: link-pelicula-1)">
+            <div class="modal-buttons-ad">
+                <button id="btn-save-app" class="button secondary">Guardar solo en la app</button>
+                <button id="btn-save-publish-channel" class="button">Guardar y publicar en el canal</button>
+                <button id="btn-save-notify-app-new" class="button red">Guardar en la app y notificar</button>
+            </div>
+            <p class="modal-small-text">Esta acción es solo visible para usuarios con rol de administrador.</p>
         </div>
     </div>
 
