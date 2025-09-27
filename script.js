@@ -436,6 +436,14 @@ async function renderLikeState(tmdbId) {
 
 async function handleLike(tmdbId) {
     if (!currentUser || currentUser.isAnonymous) {
+        // FIX 1: Al requerir login, empujamos el estado actual (details) al historial
+        // para que authBackButton sepa a dónde regresar.
+        history.pushState({ 
+            screen: 'auth-screen', 
+            previousScreen: 'details-screen', 
+            previousItem: currentMovieOrSeries, 
+            previousType: currentMovieOrSeries.type
+        }, '', '');
         switchScreen('auth-screen');
         return;
     }
@@ -743,6 +751,9 @@ async function postComment(tmdbId, text) {
             timestamp: new Date()
         });
         commentInput.value = '';
+        // Cierra el teclado y restablece el banner
+        detailsScreen.classList.remove('writing-comment');
+        commentInput.blur();
     } catch (e) {
         console.error("Error al publicar comentario:", e);
         alert('No se pudo publicar el comentario.');
@@ -756,6 +767,20 @@ if (btnPostComment) {
         }
     });
 }
+
+// FIX 2: Ocultar Banner de Reproducción al enfocarse en el comentario
+if (commentInput) {
+    commentInput.addEventListener('focus', () => {
+        detailsScreen.classList.add('writing-comment');
+    });
+    commentInput.addEventListener('blur', () => {
+        // Solo restaura si no se está enviando el comentario (que ya lo maneja postComment)
+        if (!commentInput.value) {
+            detailsScreen.classList.remove('writing-comment');
+        }
+    });
+}
+
 
 function renderComments(tmdbId) {
     const commentsColRef = collection(db, 'comments');
@@ -899,7 +924,6 @@ async function showDetailsScreen(item, type) {
         actorsList.textContent = actors || 'No disponible';
         
         // --- Carga Estática de datos para la película actual ---
-        // Esto previene que una actualización global recargue esta pantalla con datos antiguos.
         const moviesSnapshot = await getDocs(collection(db, 'movies'));
         const localMoviesData = moviesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const localData = localMoviesData.find(d => d.tmdbId === item.id.toString());
@@ -917,6 +941,7 @@ async function showDetailsScreen(item, type) {
         // --- INICIALIZACIÓN DE LA SECCIÓN SOCIAL Y PESTAÑAS ---
         if (currentMovieOrSeries && currentMovieOrSeries.tmdbId) {
             // 1. Vistas (REVERTIDA A CONTAR CADA CLIC)
+            // Solo se muestra el contador inicial aquí; el incremento ocurre en playEmbeddedVideo
             const viewCount = await getCount(currentMovieOrSeries.tmdbId, 'views'); 
             if (viewCountDisplay) {
                 viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> ${viewCount.toLocaleString()} Vistas`;
@@ -929,7 +954,7 @@ async function showDetailsScreen(item, type) {
             }
             renderLikeState(currentMovieOrSeries.tmdbId); // Establece el ícono de corazón (hollow/solid)
 
-            // 3. Comentarios (REAL-TIME LOCAL)
+            // 3. Comentarios (REAL-TIME)
             renderComments(currentMovieOrSeries.tmdbId);
         }
         
@@ -1014,7 +1039,7 @@ function createMovieCard(movie, type = 'movie') {
             type: type || movie.media_type, 
             previousState: currentState 
         }, '', '');
-        showDetailsScreen(movie, type || movie.media_type)
+        showDetailsScreen(movie, movie.media_type || 'movie')
     });
     return movieCard;
 }
@@ -1268,7 +1293,7 @@ async function handleSearch(query) {
             document.querySelector('.bottom-nav').style.display = 'flex';
             appContainer.style.paddingBottom = '70px'; 
 
-            history.replaceState({ screen: 'movies-screen', searchActive: true, query: query, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(query)}`);
+            history.replaceState({ screen: 'movies-screen', searchActive: true, query: searchInput.value, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(query)}`);
             
         } catch (error) {
             console.error("Error performing search:", error);
@@ -1302,7 +1327,8 @@ function switchScreen(screenId) {
         targetScreen.classList.add('active');
         const navItem = document.querySelector(`.nav-item[data-screen="${screenId}"]`);
         if (navItem) navItem.classList.add('active');
-        if (!history.state || history.state.screen !== screenId) {
+        // FIX BUG: Solo agregamos al historial si no estamos en la pantalla de autenticación
+        if (screenId !== 'auth-screen' && (!history.state || history.state.screen !== screenId)) {
              history.pushState({ screen: screenId }, '', `?screen=${screenId}`);
         }
     }
@@ -1331,6 +1357,7 @@ function switchScreen(screenId) {
     const bottomNav = document.querySelector('.bottom-nav');
     const isSearchActive = searchOverlay.classList.contains('active');
 
+    // FIX BUG DE BARRAS (Lógica de visibilidad)
     if (screenId === 'auth-screen') { 
         topNav.style.display = 'none';
         bottomNav.style.display = 'none';
@@ -1344,6 +1371,7 @@ function switchScreen(screenId) {
         }
     } else {
         topNav.style.display = 'flex';
+        // Mostrar barras si no es una pantalla interna sin navs
         if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen' || screenId === 'profile-screen' || screenId === 'details-screen' || screenId === 'events-screen') { 
             bottomNav.style.display = 'flex';
             appContainer.style.paddingBottom = '70px';
@@ -1363,18 +1391,19 @@ window.addEventListener('popstate', async (event) => {
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
 
     if (state) {
-        if (state.screen === 'details-screen') {
-            const item = state.item;
-            const type = state.type;
+        // FIX 1: Navegación al volver del login/details
+        if (state.screen === 'details-screen' || (state.screen === 'auth-screen' && state.previousScreen === 'details-screen')) {
+            const item = state.item || state.previousItem;
+            const type = state.type || state.previousType;
             if (item && type) {
-                // FIX BUG DE BARRAS: Si regresamos a details-screen, debemos asegurarnos que las barras se muestren.
-                // Llamamos a switchScreen para forzar la re-evaluación de las barras.
+                // Forzamos el switchScreen para que se ejecute la lógica de las barras
                 switchScreen('details-screen'); 
                 showDetailsScreen(item, type); 
             } else {
                 switchScreen('home-screen');
             }
         } else {
+            // Lógica normal de popstate
             const previousStateIsSearch = state.searchActive;
 
             if (previousStateIsSearch) {
@@ -1404,16 +1433,23 @@ window.addEventListener('popstate', async (event) => {
     }
 });
 
-// Listener del botón de salir de autenticación (FIX BARRAS)
+// Listener del botón de salir de autenticación (FIX BARRAS y NAVEGACIÓN)
 authBackButton.addEventListener('click', (e) => {
     e.preventDefault();
     
-    // FIX BUG DE BARRAS: En lugar de solo history.back(), forzamos la navegación
-    // a la pantalla de detalles o a la pantalla anterior guardada en el historial.
     const currentState = history.state;
-    if (currentState && currentState.screen === 'auth-screen' && currentState.previousState) {
-        switchScreen(currentState.previousState.screen);
+    
+    if (currentState && currentState.screen === 'auth-screen') {
+        if (currentState.previousScreen === 'details-screen') {
+            // FIX 1: Regresar a la película específica
+            switchScreen('details-screen');
+            showDetailsScreen(currentState.previousItem, currentState.previousType);
+        } else {
+            // Regresar al inicio o a la pantalla anterior genérica
+            history.back();
+        }
     } else {
+        // Si no hay historial, ir a inicio
         switchScreen('home-screen');
     }
 });
@@ -1477,11 +1513,6 @@ document.querySelectorAll('.nav-item, .profile-button[data-screen]').forEach(ite
         }
     });
 });
-// COMENTADO para usar la lógica de switchScreen en el listener de authBackButton
-/* authBackButton.addEventListener('click', (e) => {
-    e.preventDefault();
-    history.back();
-}); */
 
 seeMoreButtons.forEach(button => {
     button.addEventListener('click', async (e) => {
