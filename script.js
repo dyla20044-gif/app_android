@@ -1297,7 +1297,7 @@ async function handleSearch(query) {
             document.querySelector('.bottom-nav').style.display = 'flex';
             appContainer.style.paddingBottom = '70px'; 
 
-            history.replaceState({ screen: 'movies-screen', searchActive: true, query: searchInput.value, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(query)}`);
+            history.replaceState({ screen: 'movies-screen', searchActive: true, query: searchInput.value, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(searchInput.value)}`);
             
         } catch (error) {
             console.error("Error performing search:", error);
@@ -1446,8 +1446,11 @@ authBackButton.addEventListener('click', (e) => {
     if (currentState && currentState.screen === 'auth-screen') {
         if (currentState.previousScreen === 'details-screen') {
             // FIX 1: Regresar a la película específica
-            switchScreen('details-screen');
-            showDetailsScreen(currentState.previousItem, currentState.previousType);
+            
+            // Usamos history.back() para que el navegador regrese al estado anterior (Details Screen).
+            // La función window.onpopstate se encargará de llamar a showDetailsScreen con los datos correctos.
+            history.back();
+            
         } else {
             // Regresar al inicio o a la pantalla anterior genérica
             history.back();
