@@ -486,8 +486,7 @@ function renderMoviePlayButtons(localMovie, tmdbMovie) {
                 } else {
                     // Caso en el que el reproductor no es gratis y el usuario no es PRO.
                     showProRestrictionModal();
-                    hideLoader();
-                    return;
+                    return; // Importante: salir sin llamar hideLoader si mostramos modal
                 }
 
                 if (embedCode) {
@@ -503,6 +502,7 @@ function renderMoviePlayButtons(localMovie, tmdbMovie) {
                 console.error('Error al obtener el código del reproductor:', error);
                 alert('Hubo un error al cargar el reproductor. Intenta de nuevo.');
             } finally {
+                // Ocultar el loader al finalizar la carga
                 hideLoader();
             }
         };
@@ -936,44 +936,57 @@ function createMovieCard(movie, type = 'movie') {
     return movieCard;
 }
 
+// --- CAMBIO CLAVE: Implementación de la barra de información del Carrusel (REQ 3) ---
 function createBannerItem(movie) {
     const bannerItem = document.createElement('div');
     bannerItem.className = 'banner-item';
     const backdropUrl = movie.backdrop_path ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}` : 'https://placehold.co/1080x600?text=No+Banner';
     bannerItem.style.backgroundImage = `url('${backdropUrl}')`;
+
+    // 1. Obtener detalles para la barra
+    const movieType = movie.media_type || 'movie';
+    const genreIds = movie.genre_ids || [];
+    const genreMap = movieType === 'movie' ? allMovieGenres : allTvGenres;
+    const genreNames = genreIds.map(id => genreMap[id]).filter(Boolean).join(', ');
     
-    const localMovie = moviesData.find(m => m.tmdbId === movie.id);
-    const isPremium = localMovie && localMovie.isPremium;
-    const hasEmbedCode = localMovie && (localMovie.freeEmbedCode || localMovie.proEmbedCode);
-
-    let buttonHtml = '';
-    if (hasEmbedCode) {
-        const buttonText = isPremium ? '<i class="fas fa-play"></i> Ver ahora (Versión PRO)' : '<i class="fas fa-play"></i> Ver ahora';
-        buttonHtml = `<button class="banner-button red">${buttonText}</button>`;
-    }
-
-    bannerItem.innerHTML = `
-        <div class="banner-buttons-container">
-            ${buttonHtml}
-            ${isPremium ? `<span class="pro-badge">PRO</span>` : ''}
+    // Simulación de duración (TMDB no siempre da duración en la lista de trending)
+    // Usamos 'runtime' si es película o un valor por defecto
+    const duration = movieType === 'movie' ? (movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m` : '1h 30m') : 'Serie';
+    
+    // 2. Contenedor de la barra (nuevo elemento que creamos en CSS)
+    const infoBar = document.createElement('div');
+    infoBar.className = 'banner-info-bar';
+    
+    infoBar.innerHTML = `
+        <div class="banner-info-text">
+            <h3>${movie.title || movie.name}</h3>
+            <p>${genreNames} · ${duration}</p>
         </div>
+        <button class="banner-play-icon" aria-label="Ver detalles">
+            <i class="fas fa-play"></i>
+        </button>
     `;
-
-    const playButton = bannerItem.querySelector('.red');
-    if (playButton) {
-        playButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            history.pushState({ screen: 'details-screen', item: movie, type: movie.media_type || 'movie' }, '', '');
-            showDetailsScreen(movie, movie.media_type || 'movie');
-        });
-    }
-
-    bannerItem.addEventListener('click', () => {
-        history.pushState({ screen: 'details-screen', item: movie, type: movie.media_type || 'movie' }, '', '');
-        showDetailsScreen(movie, movie.media_type || 'movie')
+    
+    // 3. Listener para el botón de play (Lleva a la pantalla de detalles)
+    const playButton = infoBar.querySelector('.banner-play-icon');
+    playButton.addEventListener('click', (e) => {
+        e.stopPropagation(); // Previene el doble click si se presiona la barra entera
+        history.pushState({ screen: 'details-screen', item: movie, type: movieType }, '', '');
+        showDetailsScreen(movie, movieType);
     });
+
+    // 4. Añadir la barra de información al banner
+    bannerItem.appendChild(infoBar);
+
+    // Listener para el click en el banner (también lleva a detalles)
+    bannerItem.addEventListener('click', () => {
+        history.pushState({ screen: 'details-screen', item: movie, type: movieType }, '', '');
+        showDetailsScreen(movie, movieType);
+    });
+    
     return bannerItem;
 }
+// --- FIN CAMBIO CLAVE ---
 
 function renderCarousel(containerId, movies, type = 'movie') {
     const container = document.getElementById(containerId);
