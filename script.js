@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInAnonymously, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, getDocs, query, where, addDoc, orderBy, limit, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, getDocs, query, where, addDoc, orderBy, limit, updateDoc, increment, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- Configuración de Firebase ---
 const firebaseConfig = {
@@ -44,7 +44,6 @@ const detailsGenres = document.getElementById('details-genres');
 const detailsSinopsis = document.getElementById('details-sinopsis');
 const directorName = document.getElementById('director-name');
 const actorsList = document.getElementById('actors-list');
-const relatedMoviesContainer = document.getElementById('related-movies');
 const genresButton = document.getElementById('genres-button');
 const seriesGenresButton = document.getElementById('series-genres-button');
 const genresModal = document.getElementById('genres-modal');
@@ -113,13 +112,21 @@ const btnOpenSearch = document.getElementById('btn-open-search');
 const searchOverlay = document.getElementById('search-overlay');
 const closeSearchButton = document.getElementById('close-search-button');
 const searchInput = document.getElementById('search-input'); // Usamos el input dentro del overlay
-const viewCountDisplay = document.getElementById('view-count-display');
+
+// ELEMENTOS SOCIALES REUBICADOS
+const viewCountDisplay = document.getElementById('view-count-display'); // Ahora en movie-metadata
+const likeCountDisplayText = document.getElementById('like-count-display-text'); // Contenedor de Like
 const btnLikeMovie = document.getElementById('btn-like-movie');
-const likeCountDisplay = document.getElementById('like-count');
 const commentInput = document.getElementById('comment-input');
 const btnPostComment = document.getElementById('btn-post-comment');
 const commentsFeed = document.getElementById('comments-feed');
 const noCommentsMessage = document.getElementById('no-comments-message');
+const relatedMoviesContainer = document.getElementById('related-movies'); // Contenedor de Similares
+
+// ELEMENTOS DE PESTAÑAS (TABS)
+const detailsTabsHeader = document.getElementById('details-tabs-header');
+const detailsTabsContent = document.getElementById('details-tabs-content');
+
 
 // --- ELEMENTOS AGREGADOS PARA NUEVOS REQUERIMIENTOS ---
 // REQUERIMIENTO: Errores amigables
@@ -147,33 +154,26 @@ let currentMovieOrSeries = null;
 let lastSearchResults = [];
 
 // ======================================================================
-// LÓGICA DE NOTIFICACIONES (REAL-TIME Y LIMPIEZA)
+// LÓGICA DE NOTIFICACIONES (REAL-TIME Y LIMPIEZA) - SIN CAMBIOS
 // ======================================================================
 
-// Lista de notificaciones que será llenada por el listener de Firestore
 let notificationsData = []; 
 
-// Función de utilidad para mostrar mensajes (Requerimiento de Errores Amigables)
 function showAppMessage(element, message, type) {
     if (!element) return;
     element.textContent = message;
     element.className = `auth-message-box ${type}`;
     element.style.display = 'block';
     
-    // Ocultar después de 5 segundos
     setTimeout(() => {
         element.style.display = 'none';
     }, 5000);
 }
 
-// Actualiza el indicador (Punto Rojo/Bolita) y aplica la limpieza de 2 días
 function updateNotificationIndicator() {
     const twoDaysInMs = 1000 * 60 * 60 * 24 * 2;
     
-    // 1. ELIMINACIÓN AUTOMÁTICA (REQUERIMIENTO 2)
-    // Filtra y elimina notificaciones que tienen más de 2 días.
     notificationsData = notificationsData.filter(n => {
-        // Asumiendo que timestamp es un objeto Date o un timestamp de Firestore.
         const timestampMs = n.timestamp.toDate ? n.timestamp.toDate().getTime() : n.timestamp; 
         return (Date.now() - timestampMs) <= twoDaysInMs;
     });
@@ -182,7 +182,6 @@ function updateNotificationIndicator() {
     const indicatorElement = document.getElementById('notification-indicator');
     
     if (indicatorElement) {
-        // REQUERIMIENTO: Mostrar solo la bolita (punto rojo)
         if (unreadCount > 0) {
             indicatorElement.classList.remove('hidden');
         } else {
@@ -191,7 +190,6 @@ function updateNotificationIndicator() {
     }
 }
 
-// Renderiza las notificaciones en el modal (REQUERIMIENTO 2)
 function renderNotifications() {
     const listElement = document.getElementById('notifications-list');
     const emptyMessage = document.getElementById('empty-notifications-message');
@@ -201,7 +199,6 @@ function renderNotifications() {
     listElement.innerHTML = '';
     
     if (notificationsData.length === 0) {
-        // Estado de la campanita: sin notificaciones (REQUERIMIENTO 4)
         emptyMessage.textContent = "Aún no tienes notificaciones.";
         emptyMessage.classList.remove('hidden');
         clearButton.classList.add('hidden');
@@ -213,10 +210,8 @@ function renderNotifications() {
 
     notificationsData.forEach(notification => {
         const item = document.createElement('div');
-        // Usamos el ID del documento de Firestore (docId) para marcar como leído
         const docId = notification.docId; 
         
-        // Convertir el timestamp de Firestore a Date si es necesario
         const timestampDate = notification.timestamp.toDate ? notification.timestamp.toDate() : new Date(notification.timestamp);
         const timeString = timestampDate.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         
@@ -230,9 +225,7 @@ function renderNotifications() {
             </div>
         `;
         
-        // Listener: al presionar, marca como leído y navega
         item.addEventListener('click', async () => {
-            // Marcar como leído en Firestore (si no está leído)
             if (!notification.isRead && docId) {
                 const notifRef = doc(db, 'userNotifications', docId);
                 try {
@@ -243,7 +236,6 @@ function renderNotifications() {
             }
             
             closeModal(userNotificationsModal);
-            // Simulación de navegación a pantalla objetivo
             if (notification.targetScreen) {
                 switchScreen(notification.targetScreen); 
             }
@@ -253,25 +245,18 @@ function renderNotifications() {
     });
 }
 
-// -------------------------------------------------------------------
-// NUEVA FUNCIÓN: Configuración de Listener en Tiempo Real para Notificaciones
-// -------------------------------------------------------------------
 function setupRealtimeNotificationsListener() {
     const notificationsColRef = collection(db, 'userNotifications');
-    // Consulta: Ordenar por fecha y limitar para eficiencia
     const q = query(notificationsColRef, orderBy("timestamp", "desc"));
     
     onSnapshot(q, (snapshot) => {
-        // Recopila los datos en tiempo real
         notificationsData = snapshot.docs.map(doc => ({
             docId: doc.id,
             ...doc.data()
         }));
 
-        // La función de limpieza se ejecuta aquí
         updateNotificationIndicator(); 
         
-        // Si el modal está abierto, lo volvemos a renderizar
         if (userNotificationsModal.classList.contains('active')) {
             renderNotifications();
         }
@@ -285,7 +270,8 @@ function setupRealtimeNotificationsListener() {
 // ======================================================================
 
 
-// --- Funciones para manejar Modales y Carga ---
+// --- Funciones de Utilidad ---
+
 function closeModal(modal) {
     if (modal) {
         modal.classList.remove('active');
@@ -305,7 +291,6 @@ function hideLoader() {
     if (loader) loader.style.display = 'none';
 }
 
-// NUEVA FUNCIÓN (Fix para el Problema 1)
 function closeAllModals() {
     const modalsToClose = [
         document.getElementById('video-modal'),
@@ -314,15 +299,13 @@ function closeAllModals() {
         document.getElementById('free-ad-modal'),
         document.getElementById('pro-restriction-modal'),
         document.getElementById('download-app-modal'),
-        // Modales de Notificación y Administración
         userNotificationsModal,
         contentPublishingModal
-    ].filter(Boolean); // Filtrar nulls
+    ].filter(Boolean); 
 
     modalsToClose.forEach(modal => closeModal(modal));
 }
 
-// Listener global de cierre
 closeButtons.forEach(button => {
     button.addEventListener('click', (event) => {
         const modal = event.target.closest('.modal') || event.target.closest('.modal-from-bottom');
@@ -337,26 +320,22 @@ window.addEventListener('click', (event) => {
     }
 });
 
-// Fix para el Problema 1 y 2 (Limpieza de Reproductor)
 function resetDetailsPlayer() {
     if (embeddedPlayerContainer) {
         embeddedPlayerContainer.style.display = 'none';
         embeddedPlayerContainer.innerHTML = '';
     }
-    // Restablecer el área del póster a su estado predeterminado
     detailsPosterTop.style.backgroundColor = 'transparent';
-    detailsPosterTop.style.backgroundImage = ''; // Limpiar la imagen de fondo incrustada
+    detailsPosterTop.style.backgroundImage = ''; 
     playButtonContainer.style.display = 'flex';
 }
 
-
-// --- Lógica del Tema Dual (REQUERIMIENTO 2) ---
+// --- Lógica del Tema Dual ---
 
 function applyTheme(mode) {
     document.body.classList.remove('light-mode', 'dark-mode');
     document.body.classList.add(mode);
     
-    // Cambiar icono: Sol para Light Mode, Luna para Dark Mode
     if (btnToggleTheme) {
         const icon = btnToggleTheme.querySelector('i');
         if (mode === 'dark-mode') {
@@ -375,7 +354,6 @@ function initializeTheme() {
     if (storedMode) {
         applyTheme(storedMode);
     } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        // Tema por defecto del sistema
         applyTheme('dark-mode');
     } else {
         applyTheme('light-mode');
@@ -392,7 +370,158 @@ if (btnToggleTheme) {
     });
 }
 
-// --- Funciones principales y de renderizado ---
+// --- Funciones de Reproducción y Lógica de Vistas/Likes Únicos ---
+
+// Función para obtener el contador de Vistas o Likes global
+async function getCount(tmdbId, field = 'likes') {
+    const itemRef = doc(db, 'movies', tmdbId.toString());
+    const docSnap = await getDoc(itemRef);
+    return docSnap.exists() ? docSnap.data()[field] || 0 : 0;
+}
+
+// LÓGICA DE VISTAS ÚNICAS (24 HORAS)
+async function checkRecentView(tmdbId) {
+    if (!auth.currentUser || auth.currentUser.isAnonymous) {
+        return false;
+    }
+    const userId = auth.currentUser.uid;
+    const oneDayAgo = new Date(Date.now() - (1000 * 60 * 60 * 24)); 
+
+    // Busca si ya hay una vista registrada en las últimas 24 horas por el usuario
+    const q = query(collection(db, 'movieViews'), 
+        where('userId', '==', userId), 
+        where('tmdbId', '==', tmdbId.toString()),
+        where('timestamp', '>', oneDayAgo),
+        limit(1)
+    );
+    const snapshot = await getDocs(q);
+    return !snapshot.empty;
+}
+
+async function logNewView(tmdbId) {
+    if (auth.currentUser && !auth.currentUser.isAnonymous) {
+        const userId = auth.currentUser.uid;
+        // Registra la nueva vista única
+        await addDoc(collection(db, 'movieViews'), {
+            userId: userId,
+            tmdbId: tmdbId.toString(),
+            timestamp: new Date()
+        });
+    }
+}
+
+async function incrementViewCount(tmdbId) {
+    // Si ya lo vio en 24h, NO cuenta, pero actualiza el contador visible
+    if (await checkRecentView(tmdbId)) {
+        console.log("View not counted: already viewed in the last 24 hours.");
+        const views = await getCount(tmdbId, 'views'); 
+        if (viewCountDisplay) {
+            viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> ${views.toLocaleString()} Vistas`;
+        }
+        return; 
+    }
+    
+    // Si pasó más de 24h, incrementa el contador global y registra la nueva vista única.
+    const itemRef = doc(db, 'movies', tmdbId.toString());
+    
+    try {
+        await updateDoc(itemRef, {
+            views: increment(1)
+        }, { merge: true });
+
+        await logNewView(tmdbId); // Registra la vista única
+
+        const docSnap = await getDoc(itemRef);
+        let views = docSnap.exists() ? docSnap.data().views || 0 : 0;
+        
+        if (viewCountDisplay) {
+            viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> ${views.toLocaleString()} Vistas`;
+        }
+    } catch (e) {
+        console.warn("Error al incrementar vistas:", e);
+        if (viewCountDisplay) {
+            viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> Error`;
+        }
+    }
+}
+
+
+// LÓGICA DE LIKES ÚNICOS Y PERSISTENTES
+async function checkUserLiked(tmdbId) {
+    if (!auth.currentUser || auth.currentUser.isAnonymous) {
+        return false;
+    }
+    const userId = auth.currentUser.uid;
+    const q = query(collection(db, 'movieLikes'), 
+        where('userId', '==', userId), 
+        where('tmdbId', '==', tmdbId.toString()),
+        limit(1)
+    );
+    const snapshot = await getDocs(q);
+    return !snapshot.empty;
+}
+
+async function renderLikeState(tmdbId) {
+    const hasLiked = await checkUserLiked(tmdbId);
+    if (btnLikeMovie) {
+        if (hasLiked) {
+            btnLikeMovie.classList.add('liked');
+        } else {
+            btnLikeMovie.classList.remove('liked');
+        }
+    }
+}
+
+async function handleLike(tmdbId) {
+    if (!currentUser || currentUser.isAnonymous) {
+        switchScreen('auth-screen');
+        return;
+    }
+
+    const userId = auth.currentUser.uid;
+    const hasLiked = await checkUserLiked(tmdbId);
+    
+    if (hasLiked) {
+        alert('Ya has dado "Me Gusta" a este contenido.');
+        return;
+    }
+
+    const itemRef = doc(db, 'movies', tmdbId.toString());
+
+    try {
+        // 1. Incrementa el contador total
+        await updateDoc(itemRef, {
+            likes: increment(1) 
+        }, { merge: true });
+        
+        // 2. Registra el like del usuario para que sea persistente
+        await addDoc(collection(db, 'movieLikes'), {
+            userId: userId,
+            tmdbId: tmdbId.toString(),
+            timestamp: new Date()
+        });
+
+        // Actualiza la interfaz
+        btnLikeMovie.classList.add('liked'); 
+        
+        const newCount = await getCount(tmdbId, 'likes');
+        if (likeCountDisplayText) {
+            likeCountDisplayText.innerHTML = `<i class="fas fa-heart"></i> ${newCount} Me Gusta`;
+        }
+    } catch (e) {
+        console.error("Error al registrar like:", e);
+        alert('Hubo un error al registrar tu "Me Gusta".');
+    }
+}
+
+if (btnLikeMovie) {
+    btnLikeMovie.addEventListener('click', () => {
+        if (currentMovieOrSeries && currentMovieOrSeries.tmdbId) {
+            handleLike(currentMovieOrSeries.tmdbId);
+        }
+    });
+}
+
 
 function showFreeAdModal(freeEmbedCode) {
     showModal(freeAdModal);
@@ -472,19 +601,16 @@ function renderMoviePlayButtons(localMovie, tmdbMovie) {
                 let isPremium = false;
 
                 if (isProUser && localMovie.proEmbedCode) {
-                    // El usuario es PRO y la película tiene un reproductor PRO.
                     isPremium = true;
                     const response = await fetch(`https://serivisios.onrender.com/api/get-embed-code?id=${localMovie.tmdbId}&isPro=true`);
                     const data = await response.json();
                     embedCode = data.embedCode;
                 } else if (localMovie.freeEmbedCode) {
-                    // El usuario es gratis (o no hay reproductor PRO), y la película tiene un reproductor gratis.
                     isPremium = false;
                     const response = await fetch(`https://serivisios.onrender.com/api/get-embed-code?id=${localMovie.tmdbId}&isPro=false`);
                     const data = await response.json();
                     embedCode = data.embedCode;
                 } else {
-                    // Caso en el que el reproductor no es gratis y el usuario no es PRO.
                     showProRestrictionModal();
                     hideLoader();
                     return;
@@ -612,9 +738,7 @@ function renderRequestButton(tmdbItem) {
                 })
             });
             if (response.ok) {
-                // REEMPLAZO DE ALERT POR showAppMessage
                 const successMsg = "Tu solicitud fue enviada. Si eres usuario gratuito, espera 3 a 6 horas. Si eres usuario premium, espera alrededor de 2 horas.";
-                // Necesitas el elemento de mensaje de solicitud visible en la pantalla de detalles o en la pantalla de solicitud
                 const detailsRequestMessage = document.getElementById('details-request-message');
                 if (detailsRequestMessage) {
                     showAppMessage(detailsRequestMessage, successMsg, 'success');
@@ -632,85 +756,10 @@ function renderRequestButton(tmdbItem) {
     playButtonContainer.appendChild(requestButton);
 }
 
-// --- Funciones Sociales (REQUERIMIENTO 4) ---
-
-async function incrementViewCount(tmdbId) {
-    // Usamos 'movies' y el ID como referencia, asumiendo que series también se guardan aquí o en una colección similar
-    const itemRef = doc(db, 'movies', tmdbId.toString());
-    
-    try {
-        await updateDoc(itemRef, {
-            views: increment(1)
-        }, { merge: true }); // Usamos merge: true para crear si no existe
-        
-        const docSnap = await getDoc(itemRef);
-        let views = 0;
-        if (docSnap.exists()) {
-            views = docSnap.data().views || 0;
-        } 
-        
-        if (viewCountDisplay) {
-            viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> ${views.toLocaleString()} Vistas`;
-        }
-    } catch (e) {
-        console.warn("Error al incrementar vistas:", e);
-        if (viewCountDisplay) {
-            viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> Error`;
-        }
-    }
-}
-
-async function getLikeCount(tmdbId) {
-    const itemRef = doc(db, 'movies', tmdbId.toString());
-    const docSnap = await getDoc(itemRef);
-    return docSnap.exists() ? docSnap.data().likes || 0 : 0;
-}
-
-async function handleLike(tmdbId) {
-    if (!currentUser || currentUser.isAnonymous) {
-        // REEMPLAZO DE ALERT POR switchScreen
-        switchScreen('auth-screen');
-        return;
-    }
-    
-    // Simple check to prevent rapid clicking / abuse (uses localStorage for session)
-    const hasLiked = localStorage.getItem(`liked_${tmdbId}`);
-    if (hasLiked) {
-        alert('Ya has dado "Me Gusta" a este contenido en esta sesión.');
-        return;
-    }
-
-    const itemRef = doc(db, 'movies', tmdbId.toString());
-
-    try {
-        await updateDoc(itemRef, {
-            likes: increment(1) 
-        }, { merge: true });
-        
-        localStorage.setItem(`liked_${tmdbId}`, 'true');
-        btnLikeMovie.classList.add('liked'); // Opcional: para cambiar el estilo
-        
-        const newCount = await getLikeCount(tmdbId);
-        if (likeCountDisplay) {
-            likeCountDisplay.textContent = `${newCount} Me Gusta`;
-        }
-    } catch (e) {
-        console.error("Error al dar like:", e);
-        alert('Hubo un error al registrar tu "Me Gusta".');
-    }
-}
-
-if (btnLikeMovie) {
-    btnLikeMovie.addEventListener('click', () => {
-        if (currentMovieOrSeries && currentMovieOrSeries.tmdbId) {
-            handleLike(currentMovieOrSeries.tmdbId);
-        }
-    });
-}
+// --- Funciones Sociales (Comentarios) ---
 
 async function postComment(tmdbId, text) {
     if (!currentUser || currentUser.isAnonymous) {
-        // REEMPLAZO DE ALERT POR switchScreen
         switchScreen('auth-screen');
         return;
     }
@@ -719,7 +768,6 @@ async function postComment(tmdbId, text) {
     }
 
     try {
-        // Nueva colección 'comments' indexada por tmdbId
         await addDoc(collection(db, "comments"), {
             tmdbId: tmdbId.toString(),
             userId: currentUser.uid,
@@ -779,14 +827,65 @@ function renderComments(tmdbId) {
 }
 
 
-// --- Modificación de showDetailsScreen (Fixes Issue 1 & 2) ---
+// --- Lógica de Pestañas (TABS) ---
+function setupDetailsTabs(tmdbItem, type) {
+    const tabButtons = detailsTabsHeader.querySelectorAll('.tab-button');
+    const tabPanes = detailsTabsContent.querySelectorAll('.tab-pane');
+    
+    // Limpiar listeners anteriores
+    tabButtons.forEach(button => {
+        button.replaceWith(button.cloneNode(true));
+    });
+    const newTabButtons = detailsTabsHeader.querySelectorAll('.tab-button');
+
+    newTabButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const targetTabId = e.target.getAttribute('data-tab');
+            
+            newTabButtons.forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            
+            tabPanes.forEach(pane => {
+                pane.classList.remove('active');
+            });
+            
+            const targetPane = document.getElementById(targetTabId);
+            if (targetPane) {
+                targetPane.classList.add('active');
+                
+                // Si la pestaña es 'Similares', renderizar el contenido
+                if (targetTabId === 'related-tab') {
+                     // Solo cargar relacionados si no se ha hecho
+                    if (relatedMoviesContainer.children.length === 0) {
+                        fetchRelatedContent(tmdbItem, type);
+                    }
+                }
+            }
+        });
+    });
+    
+    // Iniciar con la pestaña de Comentarios activa
+    document.getElementById('comments-tab').classList.add('active');
+    document.getElementById('related-tab').classList.remove('active');
+    document.querySelector('.tab-button[data-tab="comments-tab"]').classList.add('active');
+    document.querySelector('.tab-button[data-tab="related-tab"]').classList.remove('active');
+}
+
+async function fetchRelatedContent(item, type) {
+    try {
+        const related = await fetchFromTMDB(type === 'movie' ? `movie/${item.id}/similar` : `tv/${item.id}/similar`);
+        renderCarousel('related-movies', related, type);
+    } catch (error) {
+        console.error("Error fetching related content:", error);
+        relatedMoviesContainer.innerHTML = '<p style="padding: 10px;">No se encontraron contenidos similares.</p>';
+    }
+}
+
+// --- Modificación de showDetailsScreen (Integración de toda la lógica) ---
 async function showDetailsScreen(item, type) {
-    // REQ 3: Al seleccionar una película de los resultados de búsqueda, ocultar la barra de búsqueda.
     if (searchOverlay.classList.contains('active')) {
         searchOverlay.classList.remove('active');
         moviesScreen.classList.remove('search-active'); 
-        
-        // CORRECCIÓN: Restaurar ambas barras al salir de la vista de búsqueda
         document.querySelector('.top-nav').style.display = 'flex'; 
         document.querySelector('.bottom-nav').style.display = 'flex'; 
         document.getElementById('app-container').style.paddingBottom = '70px';
@@ -800,15 +899,13 @@ async function showDetailsScreen(item, type) {
     seasonsContainer.innerHTML = '';
     episodesContainer.innerHTML = '';
     seasonsContainer.style.display = 'none';
-
-    // ISSUE 1 & 2 FIX: Reset player state before loading new details
+    relatedMoviesContainer.innerHTML = ''; // Limpiar relacionados al cargar
     resetDetailsPlayer();
 
     try {
         const posterPath = item.backdrop_path || item.poster_path;
         const posterUrl = posterPath ? `https://image.tmdb.org/t/p/original${posterPath}` : 'https://placehold.co/500x750?text=No+Poster';
         
-        // ISSUE 2 FIX: Asegura que la imagen de fondo se cargue correctamente
         detailsPosterTop.style.backgroundImage = `url('${posterUrl}')`;
 
         detailsTitle.textContent = item.title || item.name;
@@ -827,7 +924,7 @@ async function showDetailsScreen(item, type) {
         
         const localData = (type === 'movie' ? moviesData : seriesData).find(d => d.tmdbId === item.id.toString());
         
-        currentMovieOrSeries = localData || { tmdbId: item.id }; // Asegurar que tenga el tmdbId
+        currentMovieOrSeries = localData || { tmdbId: item.id, type: type }; // Asegurar que tenga el tmdbId
 
         if (type === 'movie') {
             renderMoviePlayButtons(localData, item);
@@ -835,33 +932,32 @@ async function showDetailsScreen(item, type) {
             await renderSeriesButtons(localData, item);
         }
         
-        // REQUERIMIENTO 4: Inicialización de la sección Social
+        // --- INICIALIZACIÓN DE LA SECCIÓN SOCIAL Y PESTAÑAS ---
         if (currentMovieOrSeries && currentMovieOrSeries.tmdbId) {
-            // 1. Vistas
+            // 1. Vistas (ÚNICA POR 24 HORAS)
             incrementViewCount(currentMovieOrSeries.tmdbId);
             
-            // 2. Likes
-            const likeCount = await getLikeCount(currentMovieOrSeries.tmdbId);
-            if (likeCountDisplay) {
-                likeCountDisplay.textContent = `${likeCount} Me Gusta`;
+            // 2. Likes (PERSISTENTE POR USUARIO)
+            const likeCount = await getCount(currentMovieOrSeries.tmdbId, 'likes');
+            if (likeCountDisplayText) {
+                likeCountDisplayText.innerHTML = `<i class="fas fa-heart"></i> ${likeCount} Me Gusta`;
             }
+            renderLikeState(currentMovieOrSeries.tmdbId); // Establece si el usuario ya dio like
 
-            // 3. Comentarios
+            // 3. Comentarios (REAL-TIME)
             renderComments(currentMovieOrSeries.tmdbId);
-
         }
         
-        const related = await fetchFromTMDB(type === 'movie' ? `movie/${item.id}/similar` : `tv/${item.id}/similar`);
-        renderCarousel('related-movies', related, type);
+        // 4. Configurar TABS (Pestañas)
+        setupDetailsTabs(item, type);
+
 
     } catch (error) {
         console.error("Error showing details:", error);
         alert('Hubo un error al cargar los detalles. Intenta de nuevo.');
         
-        // ISSUE 2 FIX: Limpiar y volver al estado anterior al fallar la carga de detalles
         resetDetailsPlayer();
-        history.back(); // Regresa al estado de lista de búsqueda
-        
+        history.back(); 
 
     } finally {
         hideLoader();
@@ -916,19 +1012,15 @@ function createMovieCard(movie, type = 'movie') {
         <img src="${posterUrl}" alt="${movie.title || movie.name}" class="movie-poster">
     `;
     
-    // CORRECCIÓN CLAVE: Pasar el tipo de contenido dinámicamente
     movieCard.addEventListener('click', () => {
-        // Guardar el estado de búsqueda antes de navegar a los detalles
         const currentState = history.state || { screen: 'home-screen' };
         
-        // Usamos el flag 'searchActive' del estado actual (que es 'movies-screen' con resultados de búsqueda)
         const isComingFromSearch = currentState.searchActive === true;
 
         history.pushState({ 
             screen: 'details-screen', 
             item: movie, 
             type: type || movie.media_type, 
-            // Guardamos el estado de dónde venimos para restaurarlo
             previousState: currentState 
         }, '', '');
         showDetailsScreen(movie, type || movie.media_type)
@@ -1084,7 +1176,6 @@ function startBannerAutoScroll() {
     }, 3000);
 }
 
-// CORRECCIÓN CLAVE: Manejar la pausa y reanudación del carrusel.
 bannerList.addEventListener('mousedown', stopBannerAutoScroll);
 bannerList.addEventListener('mouseup', () => {
     resumeAutoScrollTimeout = setTimeout(startBannerAutoScroll, 10000); // 10 segundos
@@ -1131,7 +1222,6 @@ function renderGenresModal(type) {
     }
 }
 
-// REQ 3: Comportamiento del input de búsqueda en el Overlay
 searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         handleSearch(searchInput.value);
@@ -1143,9 +1233,8 @@ searchInput.addEventListener('input', (e) => {
     if (query.length > 2) {
         handleSearch(query);
     } else if (query.length === 0) {
-        // Al borrar la búsqueda, regresa al flujo normal de movies-screen o home
         moviesScreen.classList.remove('search-active');
-        switchScreen('home-screen'); // Vuelve al home si no hay query
+        switchScreen('home-screen'); 
     }
 });
 
@@ -1171,7 +1260,6 @@ function renderSearchResults(results, filterType = 'all') {
     }
 }
 
-// --- Modificación de handleSearch (REQ 3 - Flujo de búsqueda y FIX apilamiento) ---
 async function handleSearch(query) {
     if (query.length > 2) {
         showLoader();
@@ -1181,17 +1269,13 @@ async function handleSearch(query) {
             
             renderSearchResults(lastSearchResults);
 
-            // REQ 3 & 2: Asegurar que movies-screen está activa y la clase de layout está puesta
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             moviesScreen.classList.add('active', 'search-active');
             
-            // CORRECCIÓN: Ocultar solo top-nav, mantener bottom-nav y padding
             document.querySelector('.top-nav').style.display = 'none';
             document.querySelector('.bottom-nav').style.display = 'flex';
             appContainer.style.paddingBottom = '70px'; 
 
-            // Actualizar el historial para el estado de búsqueda
-            // *** CORRECCIÓN: Usamos replaceState para no apilar múltiples búsquedas (Problema 3) ***
             history.replaceState({ screen: 'movies-screen', searchActive: true, query: query, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(query)}`);
             
         } catch (error) {
@@ -1201,7 +1285,6 @@ async function handleSearch(query) {
             hideLoader();
         }
     } else if (query.length === 0) {
-        // Si el query se borra, vuelve al home (esto también lo maneja el input listener)
         moviesScreen.classList.remove('search-active');
         switchScreen('home-screen'); 
     }
@@ -1217,26 +1300,22 @@ filterButtons.forEach(button => {
     });
 });
 
-// --- Modificación de switchScreen (FIX visibilidad de barras en detalles y búsqueda) ---
 function switchScreen(screenId) {
-    // 1. Limpieza inicial
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-    moviesScreen.classList.remove('search-active'); // Limpiar clase search-active por defecto
+    moviesScreen.classList.remove('search-active'); 
 
     const targetScreen = document.getElementById(screenId);
     if (targetScreen) {
         targetScreen.classList.add('active');
         const navItem = document.querySelector(`.nav-item[data-screen="${screenId}"]`);
         if (navItem) navItem.classList.add('active');
-        // Solo actualiza el historial si NO es un regreso de búsqueda y si no es la pantalla de detalles
         if (!history.state || history.state.screen !== screenId) {
              history.pushState({ screen: screenId }, '', `?screen=${screenId}`);
         }
     }
 
     if (screenId === 'movies-screen') {
-        // Solo renderiza si no es el resultado de una búsqueda activa.
         if (!searchOverlay.classList.contains('active')) {
             renderAllMovies();
             searchFilters.style.display = 'none';
@@ -1251,37 +1330,28 @@ function switchScreen(screenId) {
         fetchFavorites();
         searchFilters.style.display = 'none';
     } else if (screenId === 'events-screen') {
-        // Simulación: Pantalla de Eventos (aún no implementada, pero necesaria para la navegación)
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        document.getElementById('profile-screen').classList.add('active'); // O podríamos crear una events-screen
+        document.getElementById('profile-screen').classList.add('active'); 
         searchFilters.style.display = 'none';
     }
     
-    // 2. Visibilidad de Navs
     const topNav = document.querySelector('.top-nav');
     const bottomNav = document.querySelector('.bottom-nav');
-
-    // El overlay de búsqueda siempre debe forzar la ocultación de navs
     const isSearchActive = searchOverlay.classList.contains('active');
 
     if (screenId === 'auth-screen') { 
-        // Ocultar ambas barras para la pantalla de autenticación
         topNav.style.display = 'none';
         bottomNav.style.display = 'none';
         appContainer.style.paddingBottom = '0';
     } else if (isSearchActive) { 
-        // En modo búsqueda, solo oculta la barra superior. La inferior permanece visible.
         topNav.style.display = 'none';
         bottomNav.style.display = 'flex'; 
         appContainer.style.paddingBottom = '70px'; 
-        // Si es la pantalla de búsqueda activa, aseguramos que la clase de layout persista
         if (screenId === 'movies-screen') {
             moviesScreen.classList.add('search-active');
         }
     } else {
-        // Estado normal: top-nav visible
         topNav.style.display = 'flex';
-        // Mostrar la barra inferior en las 3 pantallas principales, Perfil, Detalles y Eventos.
         if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen' || screenId === 'profile-screen' || screenId === 'details-screen' || screenId === 'events-screen') { 
             bottomNav.style.display = 'flex';
             appContainer.style.paddingBottom = '70px';
@@ -1292,37 +1362,27 @@ function switchScreen(screenId) {
     }
 }
 
-// --- Modificación de popstate (Fixes Issue 1, 2 y el Error de Regreso de Búsqueda) ---
 window.addEventListener('popstate', async (event) => {
     const state = event.state;
     
-    // ISSUE 1 & 2 FIX: Limpiar modales flotantes y reproductor
     resetDetailsPlayer(); 
     closeAllModals(); 
     
-    // FIX del ERROR 4: Asegurar que todas las pantallas, incluyendo 'details-screen', 
-    // se desactiven antes de restaurar el estado anterior. Esto elimina la "pantalla transparente" y los restos de info.
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
 
     if (state) {
         if (state.screen === 'details-screen') {
-            // Caso 1: El usuario navegó a un estado de detalles (esto no debería ocurrir con 'back' button)
             const item = state.item;
             const type = state.type;
             if (item && type) {
-                // Re-mostrar detalles (manteniendo la lógica original para este caso, aunque es raro con 'back')
                 showDetailsScreen(item, type); 
             } else {
                 switchScreen('home-screen');
             }
         } else {
-            // Caso 2: El usuario regresó de una pantalla de detalles a un estado anterior (lista de búsqueda o home)
-            
-            // REQ 3: Checkear si el estado al que regresamos implica búsqueda activa.
             const previousStateIsSearch = state.searchActive;
 
             if (previousStateIsSearch) {
-                // Restaurar estado de búsqueda
                 searchOverlay.classList.add('active');
                 moviesScreen.classList.add('active'); 
                 moviesScreen.classList.add('search-active'); 
@@ -1333,82 +1393,67 @@ window.addEventListener('popstate', async (event) => {
                     renderSearchResults(lastSearchResults, 'all'); 
                 }
                 
-                // CORRECCIÓN: Ocultar solo top-nav, mantener bottom-nav y padding
                 document.querySelector('.top-nav').style.display = 'none';
                 document.querySelector('.bottom-nav').style.display = 'flex';
                 appContainer.style.paddingBottom = '70px';
-                searchFilters.style.display = 'flex'; // Restaurar visibilidad de filtros
+                searchFilters.style.display = 'flex'; 
 
             } else {
-                // Estado normal (e.g., home, movies, series)
                 searchOverlay.classList.remove('active');
                 moviesScreen.classList.remove('search-active');
                 switchScreen(state.screen); 
             }
         }
     } else {
-        // Si no hay estado, por defecto ir a la pantalla de inicio
         switchScreen('home-screen');
     }
 });
 
 
-// Listener para el link de Perfil en la barra superior
-const topProfileLink = document.getElementById('top-profile-link');
-if (topProfileLink) {
-    topProfileLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        switchScreen('profile-screen');
-    });
-}
+// Listener para el link de Perfil en la barra superior (ELIMINADO)
+// Se eliminó la variable topProfileLink y su listener
 
-// Listener para el botón de Descarga (REQ 3)
+// Listener para el botón de Descarga
 if (btnDownloadApp) {
     btnDownloadApp.addEventListener('click', () => {
         showModal(downloadAppModal);
     });
 }
 
-// Listener para Abrir Búsqueda (REQ 1)
+// Listener para Abrir Búsqueda
 if (btnOpenSearch) {
     btnOpenSearch.addEventListener('click', () => {
         searchOverlay.classList.add('active');
         searchInput.focus();
         
-        // CORRECCIÓN: Ocultar solo top-nav, mantener bottom-nav y padding
         document.querySelector('.top-nav').style.display = 'none';
         document.querySelector('.bottom-nav').style.display = 'flex';
         appContainer.style.paddingBottom = '70px'; 
 
-        // Forzar la vista de resultados y aplicar clase para layout (REQ 2)
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         moviesScreen.classList.add('active', 'search-active');
-        searchFilters.style.display = 'flex'; // Asegurar que los filtros sean visibles
+        searchFilters.style.display = 'flex'; 
 
-        // Si ya había resultados, los muestra, sino la pantalla queda lista para escribir.
         if (lastSearchResults.length > 0) {
             renderSearchResults(lastSearchResults);
         } else {
             allMoviesGrid.innerHTML = '';
         }
 
-        // Crear un estado en el historial para el estado de búsqueda
         history.pushState({ screen: 'movies-screen', searchActive: true, query: searchInput.value, results: lastSearchResults }, '', `?screen=movies-screen&search=${encodeURIComponent(searchInput.value)}`);
     });
 }
 
-// Listener para Cerrar Búsqueda (REQ 1 - X más accesible y REQ 3 - Flujo)
+// Listener para Cerrar Búsqueda
 if (closeSearchButton) {
     closeSearchButton.addEventListener('click', () => {
         searchOverlay.classList.remove('active');
-        moviesScreen.classList.remove('search-active'); // Remover clase de layout
+        moviesScreen.classList.remove('search-active'); 
         
-        // Limpiar el estado de búsqueda
         searchInput.value = '';
         lastSearchResults = [];
         renderSearchResults(lastSearchResults); 
         
-        // Regresa al home, restaurando el estado normal de los navs
         switchScreen('home-screen');
     });
 }
@@ -1537,7 +1582,6 @@ async function playAd() {
     });
 }
 
-// MODIFICACIÓN: Uso de showAppMessage para mensajes de éxito/error (REQUERIMIENTO 3)
 submitRequestButton.addEventListener('click', async (e) => {
     e.preventDefault();
     if (!auth.currentUser || auth.currentUser.isAnonymous) {
@@ -1559,7 +1603,6 @@ submitRequestButton.addEventListener('click', async (e) => {
             requestedAt: new Date()
         });
         
-        // Mensaje amigable con tiempo de espera específico
         const successMsg = "Tu solicitud fue enviada. Si eres usuario gratuito, espera 3 a 6 horas. Si eres usuario premium, espera alrededor de 2 horas.";
         showAppMessage(requestMessage, successMsg, 'success');
         movieRequestInput.value = '';
@@ -1663,9 +1706,8 @@ showLoginLink.addEventListener('click', (e) => {
     loginForm.classList.add('active-form');
 });
 
-// MODIFICACIÓN: Uso de showAppMessage para errores (REQUERIMIENTO 3)
 signupButton.addEventListener('click', async () => {
-    signupMessage.style.display = 'none'; // Limpiar mensaje anterior
+    signupMessage.style.display = 'none'; 
     const email = signupEmailInput.value;
     const password = signupPasswordInput.value;
     const termsAccepted = document.getElementById('terms-checkbox').checked;
@@ -1688,13 +1730,12 @@ signupButton.addEventListener('click', async () => {
         } else if (error.code === 'auth/weak-password') {
              userMessage = 'La contraseña debe tener al menos 6 caracteres.';
         }
-        showAppMessage(signupMessage, userMessage, 'error'); // Mostrar error en la caja
+        showAppMessage(signupMessage, userMessage, 'error'); 
     }
 });
 
-// MODIFICACIÓN: Uso de showAppMessage para errores (REQUERIMIENTO 3)
 loginButton.addEventListener('click', async () => {
-    loginMessage.style.display = 'none'; // Limpiar mensaje anterior
+    loginMessage.style.display = 'none'; 
     const email = loginEmailInput.value;
     const password = loginPasswordInput.value;
     try {
@@ -1709,7 +1750,7 @@ loginButton.addEventListener('click', async () => {
         } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
             userMessage = 'Contraseña incorrecta.';
         }
-        showAppMessage(loginMessage, userMessage, 'error'); // Mostrar error en la caja
+        showAppMessage(loginMessage, userMessage, 'error'); 
     }
 });
 
@@ -1772,29 +1813,25 @@ signoutButton.addEventListener('click', async () => {
     }
 });
 
-// --- LISTENERS DE NOTIFICACIONES Y EVENTOS (AHORA SOLO CONSUMO) ---
+// --- LISTENERS DE NOTIFICACIONES Y EVENTOS ---
 
-// Listener para abrir el modal de Notificaciones (Campanita)
 if (btnOpenNotifications) {
     btnOpenNotifications.addEventListener('click', () => {
-        renderNotifications(); // Carga las notificaciones antes de abrir
+        renderNotifications(); 
         showModal(userNotificationsModal);
     });
 }
-// Listener para cerrar el modal
 if (notificationsClose) {
     notificationsClose.addEventListener('click', () => {
         closeModal(userNotificationsModal);
     });
 }
 
-// Listener para BORRAR TODAS las notificaciones
 if (btnClearAllNotifications) {
     btnClearAllNotifications.addEventListener('click', async () => {
         if (confirm('¿Estás seguro de que quieres borrar todas tus notificaciones?')) {
             showLoader();
             try {
-                // Iterar y eliminar cada notificación de Firestore
                 const batch = db.batch();
                 notificationsData.forEach(notif => {
                     if (notif.docId) {
@@ -1803,7 +1840,6 @@ if (btnClearAllNotifications) {
                     }
                 });
                 await batch.commit();
-                // El listener onSnapshot se encargará de actualizar notificationsData a []
                 alert('Se han borrado todas tus notificaciones.');
             } catch (error) {
                 console.error("Error al borrar notificaciones:", error);
@@ -1815,16 +1851,10 @@ if (btnClearAllNotifications) {
     });
 }
 
-// LÓGICA DE ADMINISTRACIÓN DE EVENTOS ELIMINADA DEL FRONTEND
-// Se eliminaron: btnAddEvent, addEventClose, addEventForm y su lógica de submit.
-
-// PUBLICAR PELÍCULA Y NOTIFICAR (Se mantiene la simulación, aunque solo para el caso de uso del admin)
 if (btnPubSaveNotify) {
     btnPubSaveNotify.addEventListener('click', async () => {
-        // Esta es la simulación de lo que pasaría al publicar desde la web o el bot:
         const embedLink = document.getElementById('admin-embed-input').value || 'Link_Simulado_PRO';
 
-        // Simulación: Guardar la notificación en la colección REAL de Firestore
         try {
             await addDoc(collection(db, "userNotifications"), {
                 title: '¡Nueva Película Publicada!',
@@ -1889,10 +1919,8 @@ onAuthStateChanged(auth, async (user) => {
 
     if (!isInitialized) {
         isInitialized = true;
-        // 1. Inicializar el listener de Notificaciones antes de cargar el contenido
         setupRealtimeNotificationsListener(); 
         
-        // REQ 2: Inicializar el tema primero
         initializeTheme();
         showLoader();
         const moviesColRef = collection(db, 'movies');
@@ -1914,7 +1942,7 @@ onAuthStateChanged(auth, async (user) => {
         
         await fetchAllGenres('movie');
         await fetchAllGenres('tv');
-        updateNotificationIndicator(); // Inicializar el indicador de notificaciones
+        updateNotificationIndicator(); 
         switchScreen('home-screen');
     }
 });
