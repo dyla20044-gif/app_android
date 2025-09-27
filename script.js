@@ -843,7 +843,7 @@ async function showDetailsScreen(item, type) {
             // 2. Likes
             const likeCount = await getLikeCount(currentMovieOrSeries.tmdbId);
             if (likeCountDisplay) {
-                likeCountDisplay.textContent = `${newCount} Me Gusta`;
+                likeCountDisplay.textContent = `${likeCount} Me Gusta`;
             }
 
             // 3. Comentarios
@@ -1008,7 +1008,7 @@ async function fetchHistory() {
             historySection.style.display = 'none';
         }
     } catch (e) {
-        console.error("Error al agregar al historial: ", e);
+        console.error("Error al obtener el historial: ", e);
         historySection.style.display = 'none';
     }
 }
