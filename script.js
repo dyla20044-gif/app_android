@@ -898,21 +898,25 @@ async function showDetailsScreen(item, type) {
         const actors = credits.cast.slice(0, 3).map(a => a.name).join(', ');
         actorsList.textContent = actors || 'No disponible';
         
-        const localData = (type === 'movie' ? moviesData : seriesData).find(d => d.tmdbId === item.id.toString());
-        
+        // --- Carga Estática de datos para la película actual ---
+        // Esto previene que una actualización global recargue esta pantalla con datos antiguos.
+        const moviesSnapshot = await getDocs(collection(db, 'movies'));
+        const localMoviesData = moviesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const localData = localMoviesData.find(d => d.tmdbId === item.id.toString());
+        // --------------------------------------------------------
+
         currentMovieOrSeries = localData || { tmdbId: item.id, type: type }; // Asegurar que tenga el tmdbId
 
         if (type === 'movie') {
             renderMoviePlayButtons(localData, item);
         } else if (type === 'tv') {
-            // FIX 2: La lógica de temporadas debe ejecutarse ANTES de la carga de pestañas
+            // La lógica de temporadas debe ejecutarse ANTES de la carga de pestañas
             await renderSeriesButtons(localData, item);
         }
         
         // --- INICIALIZACIÓN DE LA SECCIÓN SOCIAL Y PESTAÑAS ---
         if (currentMovieOrSeries && currentMovieOrSeries.tmdbId) {
             // 1. Vistas (REVERTIDA A CONTAR CADA CLIC)
-            // Solo se muestra el contador inicial aquí; el incremento ocurre en playEmbeddedVideo
             const viewCount = await getCount(currentMovieOrSeries.tmdbId, 'views'); 
             if (viewCountDisplay) {
                 viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> ${viewCount.toLocaleString()} Vistas`;
@@ -925,14 +929,14 @@ async function showDetailsScreen(item, type) {
             }
             renderLikeState(currentMovieOrSeries.tmdbId); // Establece el ícono de corazón (hollow/solid)
 
-            // 3. Comentarios (REAL-TIME)
+            // 3. Comentarios (REAL-TIME LOCAL)
             renderComments(currentMovieOrSeries.tmdbId);
         }
         
         // 4. Configurar TABS (Pestañas)
         setupDetailsTabs(item, type);
         
-        // FIX 1: Carga forzada de Similares si es la pestaña activa por defecto
+        // Carga forzada de Similares si es la pestaña activa por defecto
         const defaultTab = document.querySelector('.tab-button[data-tab="related-content-pane"]');
         if (defaultTab && defaultTab.classList.contains('active')) {
              fetchRelatedContent(item, type);
@@ -1363,6 +1367,9 @@ window.addEventListener('popstate', async (event) => {
             const item = state.item;
             const type = state.type;
             if (item && type) {
+                // FIX BUG DE BARRAS: Si regresamos a details-screen, debemos asegurarnos que las barras se muestren.
+                // Llamamos a switchScreen para forzar la re-evaluación de las barras.
+                switchScreen('details-screen'); 
                 showDetailsScreen(item, type); 
             } else {
                 switchScreen('home-screen');
@@ -1392,6 +1399,20 @@ window.addEventListener('popstate', async (event) => {
                 switchScreen(state.screen); 
             }
         }
+    } else {
+        switchScreen('home-screen');
+    }
+});
+
+// Listener del botón de salir de autenticación (FIX BARRAS)
+authBackButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    
+    // FIX BUG DE BARRAS: En lugar de solo history.back(), forzamos la navegación
+    // a la pantalla de detalles o a la pantalla anterior guardada en el historial.
+    const currentState = history.state;
+    if (currentState && currentState.screen === 'auth-screen' && currentState.previousState) {
+        switchScreen(currentState.previousState.screen);
     } else {
         switchScreen('home-screen');
     }
@@ -1456,10 +1477,11 @@ document.querySelectorAll('.nav-item, .profile-button[data-screen]').forEach(ite
         }
     });
 });
-authBackButton.addEventListener('click', (e) => {
+// COMENTADO para usar la lógica de switchScreen en el listener de authBackButton
+/* authBackButton.addEventListener('click', (e) => {
     e.preventDefault();
     history.back();
-});
+}); */
 
 seeMoreButtons.forEach(button => {
     button.addEventListener('click', async (e) => {
@@ -1864,6 +1886,25 @@ if (btnPubSaveNotify) {
     });
 }
 
+// NUEVA FUNCIÓN: Carga estática de películas y series
+async function fetchAppData() {
+    try {
+        const moviesSnapshot = await getDocs(collection(db, 'movies'));
+        moviesData = moviesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        const seriesSnapshot = await getDocs(collection(db, 'series'));
+        seriesData = seriesSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (e) {
+        console.error("Error fetching app data statically:", e);
+    }
+}
+
 
 let isInitialized = false;
 onAuthStateChanged(auth, async (user) => {
@@ -1911,22 +1952,13 @@ onAuthStateChanged(auth, async (user) => {
         
         initializeTheme();
         showLoader();
-        const moviesColRef = collection(db, 'movies');
-        onSnapshot(moviesColRef, (snapshot) => {
-            moviesData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            fetchHomeContent();
-        });
         
-        const seriesColRef = collection(db, 'series');
-        onSnapshot(seriesColRef, (snapshot) => {
-            seriesData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-        });
+        // CORRECCIÓN CRÍTICA: Cambiamos los onSnapshot globales por fetch estático.
+        await fetchAppData();
+
+        // Eliminamos los listeners globales de recarga aquí:
+        // const moviesColRef = collection(db, 'movies');
+        // onSnapshot(moviesColRef, ...)
         
         await fetchAllGenres('movie');
         await fetchAllGenres('tv');
