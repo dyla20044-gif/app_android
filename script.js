@@ -132,7 +132,6 @@ const btnOpenNotifications = document.getElementById('btn-open-avisos'); // El b
 const userNotificationsModal = document.getElementById('user-notifications-modal');
 const btnClearAllNotifications = document.getElementById('btn-clear-all-notifications');
 const notificationsClose = document.getElementById('notifications-close');
-// Los elementos de administración (Eventos, Modales, etc.) han sido eliminados de las declaraciones, ya que son exclusivos del bot.
 const contentPublishingModal = document.getElementById('admin-avisos-modal');
 const btnPubSaveNotify = document.getElementById('btn-save-notify-app-new'); 
 
@@ -148,18 +147,11 @@ let currentMovieOrSeries = null;
 let lastSearchResults = [];
 
 // ======================================================================
-// SIMULACIÓN DE DATOS Y LÓGICA DE NOTIFICACIONES (REQUERIMIENTO 1, 2, 3)
+// LÓGICA DE NOTIFICACIONES (REAL-TIME Y LIMPIEZA)
 // ======================================================================
 
-// SIMULACIÓN DE DATOS: En un entorno real, esto se cargaría de Firebase/backend.
-let notificationsData = [
-    // Ejemplo: Película añadida hace menos de 2 días
-    { id: 1, type: 'movie', title: '¡Nueva Película: El Guardián!', description: 'Película de acción añadida a la colección.', image: 'https://placehold.co/50x70?text=Movie', timestamp: Date.now() - (1000 * 60 * 60 * 12), isRead: false, targetScreen: 'details-screen' },
-    // Ejemplo: Evento añadido hace 1 día
-    { id: 2, type: 'event', title: 'Evento: Noche de Trivia de Cine', description: 'Únete a nuestra trivia en línea.', image: 'https://placehold.co/50x70?text=Event', timestamp: Date.now() - (1000 * 60 * 60 * 24), isRead: true, targetScreen: 'profile-screen' },
-    // Ejemplo: Notificación antigua (se eliminará automáticamente al cargar, más de 2 días)
-    { id: 3, type: 'movie', title: 'Película Antigua (A Borrar)', description: 'Esta notificación es de hace 3 días.', image: 'https://placehold.co/50x70?text=Old', timestamp: Date.now() - (1000 * 60 * 60 * 24 * 3), isRead: false, targetScreen: 'details-screen' }
-];
+// Lista de notificaciones que será llenada por el listener de Firestore
+let notificationsData = []; 
 
 // Función de utilidad para mostrar mensajes (Requerimiento de Errores Amigables)
 function showAppMessage(element, message, type) {
@@ -177,15 +169,20 @@ function showAppMessage(element, message, type) {
 // Actualiza el indicador (Punto Rojo/Bolita) y aplica la limpieza de 2 días
 function updateNotificationIndicator() {
     const twoDaysInMs = 1000 * 60 * 60 * 24 * 2;
+    
     // 1. ELIMINACIÓN AUTOMÁTICA (REQUERIMIENTO 2)
-    notificationsData = notificationsData.filter(n => (Date.now() - n.timestamp) <= twoDaysInMs);
+    // Filtra y elimina notificaciones que tienen más de 2 días.
+    notificationsData = notificationsData.filter(n => {
+        // Asumiendo que timestamp es un objeto Date o un timestamp de Firestore.
+        const timestampMs = n.timestamp.toDate ? n.timestamp.toDate().getTime() : n.timestamp; 
+        return (Date.now() - timestampMs) <= twoDaysInMs;
+    });
 
     const unreadCount = notificationsData.filter(n => !n.isRead).length;
     const indicatorElement = document.getElementById('notification-indicator');
     
     if (indicatorElement) {
-        // REQUERIMIENTO: Mostrar solo la bolita (toggle de la clase 'hidden')
-        // El CSS se encarga de que sea una bolita sin número.
+        // REQUERIMIENTO: Mostrar solo la bolita (punto rojo)
         if (unreadCount > 0) {
             indicatorElement.classList.remove('hidden');
         } else {
@@ -216,10 +213,14 @@ function renderNotifications() {
 
     notificationsData.forEach(notification => {
         const item = document.createElement('div');
-        item.className = `notification-item ${!notification.isRead ? 'unread' : ''}`;
+        // Usamos el ID del documento de Firestore (docId) para marcar como leído
+        const docId = notification.docId; 
         
-        // Formatea el timestamp a una cadena de fecha simple
-        const timeString = new Date(notification.timestamp).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        // Convertir el timestamp de Firestore a Date si es necesario
+        const timestampDate = notification.timestamp.toDate ? notification.timestamp.toDate() : new Date(notification.timestamp);
+        const timeString = timestampDate.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
+        item.className = `notification-item ${!notification.isRead ? 'unread' : ''}`;
         
         item.innerHTML = `
             <img src="${notification.image}" alt="${notification.title}" onerror="this.onerror=null;this.src='https://placehold.co/50x70?text=IMG'">
@@ -230,13 +231,17 @@ function renderNotifications() {
         `;
         
         // Listener: al presionar, marca como leído y navega
-        item.addEventListener('click', () => {
-            // Marcar como leído
-            const notifIndex = notificationsData.findIndex(n => n.id === notification.id);
-            if (notifIndex !== -1 && !notificationsData[notifIndex].isRead) {
-                notificationsData[notifIndex].isRead = true;
-                updateNotificationIndicator(); 
+        item.addEventListener('click', async () => {
+            // Marcar como leído en Firestore (si no está leído)
+            if (!notification.isRead && docId) {
+                const notifRef = doc(db, 'userNotifications', docId);
+                try {
+                    await updateDoc(notifRef, { isRead: true });
+                } catch (error) {
+                    console.error("Error al marcar como leído:", error);
+                }
             }
+            
             closeModal(userNotificationsModal);
             // Simulación de navegación a pantalla objetivo
             if (notification.targetScreen) {
@@ -247,8 +252,36 @@ function renderNotifications() {
         listElement.appendChild(item);
     });
 }
+
+// -------------------------------------------------------------------
+// NUEVA FUNCIÓN: Configuración de Listener en Tiempo Real para Notificaciones
+// -------------------------------------------------------------------
+function setupRealtimeNotificationsListener() {
+    const notificationsColRef = collection(db, 'userNotifications');
+    // Consulta: Ordenar por fecha y limitar para eficiencia
+    const q = query(notificationsColRef, orderBy("timestamp", "desc"));
+    
+    onSnapshot(q, (snapshot) => {
+        // Recopila los datos en tiempo real
+        notificationsData = snapshot.docs.map(doc => ({
+            docId: doc.id,
+            ...doc.data()
+        }));
+
+        // La función de limpieza se ejecuta aquí
+        updateNotificationIndicator(); 
+        
+        // Si el modal está abierto, lo volvemos a renderizar
+        if (userNotificationsModal.classList.contains('active')) {
+            renderNotifications();
+        }
+
+    }, (error) => {
+        console.error("Error al obtener notificaciones en tiempo real:", error);
+    });
+}
 // ======================================================================
-// FIN: LÓGICA DE NOTIFICACIONES
+// FIN: LÓGICA DE NOTIFICACIONES (REAL-TIME Y LIMPIEZA)
 // ======================================================================
 
 
@@ -1757,42 +1790,59 @@ if (notificationsClose) {
 
 // Listener para BORRAR TODAS las notificaciones
 if (btnClearAllNotifications) {
-    btnClearAllNotifications.addEventListener('click', () => {
+    btnClearAllNotifications.addEventListener('click', async () => {
         if (confirm('¿Estás seguro de que quieres borrar todas tus notificaciones?')) {
-            notificationsData = []; // Borrar localmente (Simulación de borrado en DB)
-            renderNotifications(); // Volver a renderizar (mostrará el mensaje de vacío)
-            updateNotificationIndicator(); // Quitar el punto/bolita
-            alert('Se han borrado todas tus notificaciones.');
+            showLoader();
+            try {
+                // Iterar y eliminar cada notificación de Firestore
+                const batch = db.batch();
+                notificationsData.forEach(notif => {
+                    if (notif.docId) {
+                        const notifRef = doc(db, 'userNotifications', notif.docId);
+                        batch.delete(notifRef);
+                    }
+                });
+                await batch.commit();
+                // El listener onSnapshot se encargará de actualizar notificationsData a []
+                alert('Se han borrado todas tus notificaciones.');
+            } catch (error) {
+                console.error("Error al borrar notificaciones:", error);
+                alert('Hubo un error al borrar las notificaciones. Intenta de nuevo.');
+            } finally {
+                hideLoader();
+            }
         }
     });
 }
 
 // LÓGICA DE ADMINISTRACIÓN DE EVENTOS ELIMINADA DEL FRONTEND
-// El modal admin-avisos-modal (para publicación) se mantiene inactivo y solo para fines de simulación.
+// Se eliminaron: btnAddEvent, addEventClose, addEventForm y su lógica de submit.
 
 // PUBLICAR PELÍCULA Y NOTIFICAR (Se mantiene la simulación, aunque solo para el caso de uso del admin)
 if (btnPubSaveNotify) {
-    btnPubSaveNotify.addEventListener('click', () => {
-        // Para este caso, simularemos que el admin está logueado en la web y publica
+    btnPubSaveNotify.addEventListener('click', async () => {
+        // Esta es la simulación de lo que pasaría al publicar desde la web o el bot:
         const embedLink = document.getElementById('admin-embed-input').value || 'Link_Simulado_PRO';
 
-        // Simulación de guardar y crear notificación
-        const newMovieNotif = {
-            id: Date.now(),
-            type: 'movie',
-            title: `¡Nueva Película con link ${embedLink.substring(0, 10)}...!`,
-            description: 'Se ha añadido una nueva película a la app y se ha notificado.',
-            image: 'https://placehold.co/50x70?text=NewMovie',
-            timestamp: Date.now(),
-            isRead: false,
-            targetScreen: 'details-screen' 
-        };
-        
-        notificationsData.push(newMovieNotif);
-        updateNotificationIndicator();
-        
-        alert('Película guardada y notificación enviada a los usuarios. (Simulado)');
-        closeModal(contentPublishingModal); 
+        // Simulación: Guardar la notificación en la colección REAL de Firestore
+        try {
+            await addDoc(collection(db, "userNotifications"), {
+                title: '¡Nueva Película Publicada!',
+                description: `Contenido nuevo disponible: ${embedLink.substring(0, 15)}...`,
+                image: 'https://placehold.co/50x70?text=NEW',
+                timestamp: new Date(),
+                isRead: false,
+                type: 'movie',
+                targetScreen: 'details-screen' 
+            });
+            
+            alert('Película guardada y notificación enviada a los usuarios. (Simulado)');
+            closeModal(contentPublishingModal); 
+
+        } catch (error) {
+             console.error("Error al simular notificación real:", error);
+             alert('Error: No se pudo conectar a la colección de notificaciones. Revisa Firebase.');
+        }
     });
 }
 
@@ -1839,6 +1889,9 @@ onAuthStateChanged(auth, async (user) => {
 
     if (!isInitialized) {
         isInitialized = true;
+        // 1. Inicializar el listener de Notificaciones antes de cargar el contenido
+        setupRealtimeNotificationsListener(); 
+        
         // REQ 2: Inicializar el tema primero
         initializeTheme();
         showLoader();
