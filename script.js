@@ -321,6 +321,13 @@ window.addEventListener('click', (event) => {
     }
 });
 
+// --- NUEVA FUNCIÓN PARA LEER PARÁMETROS DE LA URL (Telegram Mini Apps) ---
+function getURLParameter(name) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(name);
+}
+// --- FIN FUNCIÓN DE UTILIDAD ---
+
 function resetDetailsPlayer() {
     if (embeddedPlayerContainer) {
         embeddedPlayerContainer.style.display = 'none';
@@ -2008,7 +2015,40 @@ onAuthStateChanged(auth, async (user) => {
         appContainer.style.display = 'block';
         hideLoader();
 
-        // 4. Navegar a la pantalla principal
-        switchScreen('home-screen');
+        // === LÓGICA CORREGIDA: Manejar el ID de Telegram MiniApp ===
+        const startAppId = getURLParameter('startapp');
+        if (startAppId) {
+            try {
+                // El endpoint de TMDB /details devuelve el objeto de detalle directamente.
+                // Intentamos buscar primero como película.
+                let fullItem = await fetchFromTMDB(`movie/${startAppId}`);
+                let type = 'movie';
+
+                // Si no es una película válida (el endpoint devuelve un error), intentamos como serie de TV.
+                if (!fullItem || fullItem.status_code === 34 || !fullItem.id) {
+                     fullItem = await fetchFromTMDB(`tv/${startAppId}`);
+                     type = 'tv';
+                }
+
+                if (fullItem && fullItem.id) {
+                    // Aseguramos que el objeto tenga el tipo para que showDetailsScreen funcione
+                    fullItem.media_type = type; 
+                    
+                    // Empujamos el estado de detalles antes de mostrar
+                    history.pushState({ screen: 'details-screen', item: fullItem, type: type }, '', '');
+                    showDetailsScreen(fullItem, type);
+                } else {
+                    // Si no se encuentra, ir a la pantalla de inicio por defecto
+                    switchScreen('home-screen');
+                }
+            } catch (error) {
+                console.error("Error al cargar contenido desde Telegram:", error);
+                // Si hay error, vamos al inicio como fallback
+                switchScreen('home-screen');
+            }
+        } else {
+            // 4. Navegar a la pantalla principal por defecto
+            switchScreen('home-screen');
+        }
     }
 });
