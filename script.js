@@ -713,9 +713,7 @@ function renderRequestButton(tmdbItem) {
                 })
             });
             if (response.ok) {
-                // REEMPLAZO DE ALERT POR showAppMessage
                 const successMsg = "Tu solicitud fue enviada. Si eres usuario gratuito, espera 3 a 6 horas. Si eres usuario premium, espera alrededor de 2 horas.";
-                // Necesitas el elemento de mensaje de solicitud visible en la pantalla de detalles o en la pantalla de solicitud
                 const detailsRequestMessage = document.getElementById('details-request-message');
                 if (detailsRequestMessage) {
                     showAppMessage(detailsRequestMessage, successMsg, 'success');
@@ -733,85 +731,10 @@ function renderRequestButton(tmdbItem) {
     playButtonContainer.appendChild(requestButton);
 }
 
-// --- Funciones Sociales (REQUERIMIENTO 4) ---
-
-async function incrementViewCount(tmdbId) {
-    // Usamos 'movies' y el ID como referencia, asumiendo que series también se guardan aquí o en una colección similar
-    const itemRef = doc(db, 'movies', tmdbId.toString());
-    
-    try {
-        await updateDoc(itemRef, {
-            views: increment(1)
-        }, { merge: true }); // Usamos merge: true para crear si no existe
-        
-        const docSnap = await getDoc(itemRef);
-        let views = 0;
-        if (docSnap.exists()) {
-            views = docSnap.data().views || 0;
-        } 
-        
-        if (viewCountDisplay) {
-            viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> ${views.toLocaleString()} Vistas`;
-        }
-    } catch (e) {
-        console.warn("Error al incrementar vistas:", e);
-        if (viewCountDisplay) {
-            viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> Error`;
-        }
-    }
-}
-
-async function getLikeCount(tmdbId) {
-    const itemRef = doc(db, 'movies', tmdbId.toString());
-    const docSnap = await getDoc(itemRef);
-    return docSnap.exists() ? docSnap.data().likes || 0 : 0;
-}
-
-async function handleLike(tmdbId) {
-    if (!currentUser || currentUser.isAnonymous) {
-        // REEMPLAZO DE ALERT POR switchScreen
-        switchScreen('auth-screen');
-        return;
-    }
-    
-    // Simple check to prevent rapid clicking / abuse (uses localStorage for session)
-    const hasLiked = localStorage.getItem(`liked_${tmdbId}`);
-    if (hasLiked) {
-        alert('Ya has dado "Me Gusta" a este contenido en esta sesión.');
-        return;
-    }
-
-    const itemRef = doc(db, 'movies', tmdbId.toString());
-
-    try {
-        await updateDoc(itemRef, {
-            likes: increment(1) 
-        }, { merge: true });
-        
-        localStorage.setItem(`liked_${tmdbId}`, 'true');
-        btnLikeMovie.classList.add('liked'); // Opcional: para cambiar el estilo
-        
-        const newCount = await getLikeCount(tmdbId);
-        if (likeCountDisplay) {
-            likeCountDisplay.textContent = `${newCount} Me Gusta`;
-        }
-    } catch (e) {
-        console.error("Error al dar like:", e);
-        alert('Hubo un error al registrar tu "Me Gusta".');
-    }
-}
-
-if (btnLikeMovie) {
-    btnLikeMovie.addEventListener('click', () => {
-        if (currentMovieOrSeries && currentMovieOrSeries.tmdbId) {
-            handleLike(currentMovieOrSeries.tmdbId);
-        }
-    });
-}
+// --- Funciones Sociales (Comentarios) ---
 
 async function postComment(tmdbId, text) {
     if (!currentUser || currentUser.isAnonymous) {
-        // REEMPLAZO DE ALERT POR switchScreen
         switchScreen('auth-screen');
         return;
     }
@@ -820,7 +743,6 @@ async function postComment(tmdbId, text) {
     }
 
     try {
-        // Nueva colección 'comments' indexada por tmdbId
         await addDoc(collection(db, "comments"), {
             tmdbId: tmdbId.toString(),
             userId: currentUser.uid,
@@ -830,6 +752,9 @@ async function postComment(tmdbId, text) {
             timestamp: new Date()
         });
         commentInput.value = '';
+        // Cierra el teclado y restablece el banner
+        detailsScreen.classList.remove('writing-comment');
+        commentInput.blur();
     } catch (e) {
         console.error("Error al publicar comentario:", e);
         alert('No se pudo publicar el comentario.');
@@ -844,23 +769,54 @@ if (btnPostComment) {
     });
 }
 
+// FIX 2: Ocultar Banner de Reproducción al enfocarse en el comentario Y FIX 3 (Redirección)
+if (commentInput) {
+    commentInput.addEventListener('focus', () => {
+        // NUEVA LÓGICA: Si no está logueado, redirige y sale.
+        if (!currentUser || currentUser.isAnonymous) {
+            // Guardamos el estado actual para regresar aquí sin el error 404
+            history.pushState({ 
+                screen: 'auth-screen', 
+                previousScreen: 'details-screen', 
+                previousItem: currentFullTMDBItem, 
+                previousType: currentFullTMDBItem.type
+            }, '', '');
+            switchScreen('auth-screen');
+            commentInput.blur(); // Quita el foco para evitar que el teclado se quede abierto
+            return;
+        }
+
+        // Si está logueado, procede a ocultar el banner
+        detailsScreen.classList.add('writing-comment');
+    });
+    commentInput.addEventListener('blur', () => {
+        // Solo restaura si no se está enviando el comentario
+        if (!commentInput.value) {
+            detailsScreen.classList.remove('writing-comment');
+        }
+    });
+}
+
+
 function renderComments(tmdbId) {
     const commentsColRef = collection(db, 'comments');
     const q = query(commentsColRef, where("tmdbId", "==", tmdbId.toString()), orderBy("timestamp", "desc"));
     
-    // Configurar listener en tiempo real
+    // Configurar listener en tiempo real (Fix Comentarios)
     onSnapshot(q, (snapshot) => {
         commentsFeed.innerHTML = '';
         if (snapshot.empty) {
-            noCommentsMessage.style.display = 'block';
-            commentsFeed.appendChild(noCommentsMessage);
+            // Asegurar que el mensaje de "no comentarios" se vea correctamente
+            const emptyMessageElement = document.createElement('p');
+            emptyMessageElement.id = 'no-comments-message';
+            emptyMessageElement.style.color = '#888';
+            emptyMessageElement.textContent = 'Sé el primero en comentar.';
+            commentsFeed.appendChild(emptyMessageElement);
             return;
         }
         
-        noCommentsMessage.style.display = 'none';
         snapshot.docs.forEach(doc => {
             const data = doc.data();
-            // Formatear el timestamp a una cadena de fecha simple
             const date = data.timestamp.toDate().toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' });
             
             const commentItem = document.createElement('div');
@@ -880,14 +836,73 @@ function renderComments(tmdbId) {
 }
 
 
-// --- Modificación de showDetailsScreen (Fixes Issue 1 & 2) ---
+// --- Lógica de Pestañas (TABS) ---
+function setupDetailsTabs(tmdbItem, type) {
+    // CRITICAL FIX 1: Safety check for tab containers
+    if (!detailsTabsHeader || !detailsTabsContent) {
+        console.error("Tab containers not found in DOM.");
+        return; // Exit function gracefully if elements are missing
+    }
+    
+    const tabButtons = detailsTabsHeader.querySelectorAll('.tab-button');
+    const tabPanes = detailsTabsContent.querySelectorAll('.tab-pane');
+    
+    // Limpiar listeners anteriores
+    tabButtons.forEach(button => {
+        button.replaceWith(button.cloneNode(true));
+    });
+    const newTabButtons = detailsTabsHeader.querySelectorAll('.tab-button');
+
+    newTabButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const targetTabId = e.target.getAttribute('data-tab');
+            
+            newTabButtons.forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            
+            tabPanes.forEach(pane => {
+                pane.classList.remove('active');
+            });
+            
+            const targetPane = document.getElementById(targetTabId);
+            if (targetPane) {
+                targetPane.classList.add('active');
+                
+                // Si la pestaña es 'Similares' (related-content-pane), renderizar el contenido
+                if (targetTabId === 'related-content-pane') {
+                    // Carga forzada al hacer clic
+                    if (relatedMoviesContainer.children.length === 0) {
+                        fetchRelatedContent(tmdbItem, type);
+                    }
+                }
+            }
+        });
+    });
+    
+    // Iniciar con la pestaña de Similares (related-content-pane) activa (el primer botón)
+    document.getElementById('related-content-pane').classList.add('active');
+    document.getElementById('comments-content-pane').classList.remove('active');
+    document.querySelector('.tab-button[data-tab="related-content-pane"]').classList.add('active');
+    document.querySelector('.tab-button[data-tab="comments-content-pane"]').classList.remove('active');
+}
+
+async function fetchRelatedContent(item, type) {
+    try {
+        // CORRECCIÓN CLAVE: Usar el tipo de endpoint correcto (movie o tv)
+        const tmdbEndpointType = type === 'movie' ? 'movie' : 'tv';
+        const related = await fetchFromTMDB(`${tmdbEndpointType}/${item.id}/similar`);
+        renderCarousel('related-movies', related, type);
+    } catch (error) {
+        console.error("Error fetching related content:", error);
+        relatedMoviesContainer.innerHTML = '<p style="padding: 10px;">No se encontraron contenidos similares.</p>';
+    }
+}
+
+// --- Modificación de showDetailsScreen (Integración de toda la lógica) ---
 async function showDetailsScreen(item, type) {
-    // REQ 3: Al seleccionar una película de los resultados de búsqueda, ocultar la barra de búsqueda.
     if (searchOverlay.classList.contains('active')) {
         searchOverlay.classList.remove('active');
         moviesScreen.classList.remove('search-active'); 
-        
-        // CORRECCIÓN: Restaurar ambas barras al salir de la vista de búsqueda
         document.querySelector('.top-nav').style.display = 'flex'; 
         document.querySelector('.bottom-nav').style.display = 'flex'; 
         document.getElementById('app-container').style.paddingBottom = '70px';
@@ -898,6 +913,7 @@ async function showDetailsScreen(item, type) {
     appContainer.scrollTo({ top: 0, behavior: 'smooth' });
     showLoader();
     
+    // LIMPIEZA INICIAL DE CONTENEDORES
     seasonsContainer.innerHTML = '';
     episodesContainer.innerHTML = '';
     seasonsContainer.style.display = 'none';
@@ -905,6 +921,9 @@ async function showDetailsScreen(item, type) {
     resetDetailsPlayer();
 
     try {
+        // Guardamos el objeto TMDB completo que se está mostrando para la restauración del login
+        currentFullTMDBItem = item; 
+        
         const posterPath = item.backdrop_path || item.poster_path;
         const posterUrl = posterPath ? `https://image.tmdb.org/t/p/original${posterPath}` : 'https://placehold.co/500x750?text=No+Poster';
         
@@ -927,44 +946,56 @@ async function showDetailsScreen(item, type) {
         const actors = credits.cast.slice(0, 3).map(a => a.name).join(', ');
         actorsList.textContent = actors || 'No disponible';
         
-        // CORRECCIÓN CLAVE: Buscar en la colección correcta de Firebase (moviesData o seriesData)
+        // --- Carga Estática de datos para la película actual ---
+        // CORRECCIÓN CRÍTICA: Buscar en la lista local correcta (moviesData o seriesData)
         const localData = (type === 'movie' ? moviesData : seriesData).find(d => d.tmdbId === item.id.toString());
-        
-        currentMovieOrSeries = localData || { tmdbId: item.id }; // Asegurar que tenga el tmdbId
+        // --------------------------------------------------------
+
+        currentMovieOrSeries = localData || { tmdbId: item.id, type: type }; // Asegurar que tenga el tmdbId
 
         if (type === 'movie') {
             renderMoviePlayButtons(localData, item);
         } else if (type === 'tv') {
+            // La lógica de temporadas debe ejecutarse ANTES de la carga de pestañas
             await renderSeriesButtons(localData, item);
         }
         
-        // REQUERIMIENTO 4: Inicialización de la sección Social
+        // --- INICIALIZACIÓN DE LA SECCIÓN SOCIAL Y PESTAÑAS ---
         if (currentMovieOrSeries && currentMovieOrSeries.tmdbId) {
-            // 1. Vistas
-            incrementViewCount(currentMovieOrSeries.tmdbId);
-            
-            // 2. Likes
-            const likeCount = await getLikeCount(currentMovieOrSeries.tmdbId);
-            if (likeCountDisplay) {
-                likeCountDisplay.textContent = `${likeCount} Me Gusta`;
+            // 1. Vistas (REVERTIDA A CONTAR CADA CLIC)
+            // Solo se muestra el contador inicial aquí; el incremento ocurre en playEmbeddedVideo
+            const viewCount = await getCount(currentMovieOrSeries.tmdbId, 'views'); 
+            if (viewCountDisplay) {
+                viewCountDisplay.innerHTML = `<i class="fas fa-eye"></i> ${viewCount.toLocaleString()} Vistas`;
             }
+            
+            // 2. Likes (PERSISTENTE POR USUARIO)
+            const likeCount = await getCount(currentMovieOrSeries.tmdbId, 'likes');
+            if (likeCountDisplayText) {
+                likeCountDisplayText.innerHTML = `<i class="fas fa-heart"></i> ${likeCount} Me Gusta`;
+            }
+            renderLikeState(currentMovieOrSeries.tmdbId); // Establece el ícono de corazón (hollow/solid)
 
-            // 3. Comentarios
+            // 3. Comentarios (REAL-TIME)
             renderComments(currentMovieOrSeries.tmdbId);
-
         }
         
-        const related = await fetchFromTMDB(`${tmdbEndpointType}/${item.id}/similar`);
-        renderCarousel('related-movies', related, type);
+        // 4. Configurar TABS (Pestañas)
+        setupDetailsTabs(item, type);
+        
+        // Carga forzada de Similares si es la pestaña activa por defecto
+        const defaultTab = document.querySelector('.tab-button[data-tab="related-content-pane"]');
+        if (defaultTab && defaultTab.classList.contains('active')) {
+             fetchRelatedContent(item, type);
+        }
+
 
     } catch (error) {
         console.error("Error showing details:", error);
         alert('Hubo un error al cargar los detalles. Intenta de nuevo.');
         
-        // ISSUE 2 FIX: Limpiar y volver al estado anterior al fallar la carga de detalles
         resetDetailsPlayer();
-        history.back(); // Regresa al estado de lista de búsqueda
-        
+        history.back(); 
 
     } finally {
         hideLoader();
@@ -990,6 +1021,7 @@ async function fetchFromTMDB(endpoint, query = '') {
     try {
         const response = await fetch(url);
         if (!response.ok) {
+            // Si hay un error 404, lanzamos el error
             throw new Error(`Error de la API: ${response.status}`);
         }
         const data = await response.json();
@@ -1382,11 +1414,10 @@ window.addEventListener('popstate', async (event) => {
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
 
     if (state) {
-        if (state.screen === 'details-screen' || (state.screen === 'auth-screen' && state.previousScreen === 'details-screen')) {
-            const item = state.item || state.previousItem;
-            const type = state.type || state.previousType;
+        if (state.screen === 'details-screen') {
+            const item = state.item;
+            const type = state.type;
             if (item && type) {
-                switchScreen('details-screen'); 
                 showDetailsScreen(item, type); 
             } else {
                 switchScreen('home-screen');
@@ -1825,29 +1856,25 @@ signoutButton.addEventListener('click', async () => {
     }
 });
 
-// --- LISTENERS DE NOTIFICACIONES Y EVENTOS (AHORA SOLO CONSUMO) ---
+// --- LISTENERS DE NOTIFICACIONES Y EVENTOS ---
 
-// Listener para abrir el modal de Notificaciones (Campanita)
 if (btnOpenNotifications) {
     btnOpenNotifications.addEventListener('click', () => {
-        renderNotifications(); // Carga las notificaciones antes de abrir
+        renderNotifications(); 
         showModal(userNotificationsModal);
     });
 }
-// Listener para cerrar el modal
 if (notificationsClose) {
     notificationsClose.addEventListener('click', () => {
         closeModal(userNotificationsModal);
     });
 }
 
-// Listener para BORRAR TODAS las notificaciones
 if (btnClearAllNotifications) {
     btnClearAllNotifications.addEventListener('click', async () => {
         if (confirm('¿Estás seguro de que quieres borrar todas tus notificaciones?')) {
             showLoader();
             try {
-                // Iterar y eliminar cada notificación de Firestore
                 const batch = db.batch();
                 notificationsData.forEach(notif => {
                     if (notif.docId) {
@@ -1856,7 +1883,6 @@ if (btnClearAllNotifications) {
                     }
                 });
                 await batch.commit();
-                // El listener onSnapshot se encargará de actualizar notificationsData a []
                 alert('Se han borrado todas tus notificaciones.');
             } catch (error) {
                 console.error("Error al borrar notificaciones:", error);
@@ -1868,13 +1894,10 @@ if (btnClearAllNotifications) {
     });
 }
 
-// PUBLICAR PELÍCULA Y NOTIFICAR (Se mantiene la simulación, aunque solo para el caso de uso del admin)
 if (btnPubSaveNotify) {
     btnPubSaveNotify.addEventListener('click', async () => {
-        // Esta es la simulación de lo que pasaría al publicar desde la web o el bot:
         const embedLink = document.getElementById('admin-embed-input').value || 'Link_Simulado_PRO';
 
-        // Simulación: Guardar la notificación en la colección REAL de Firestore
         try {
             await addDoc(collection(db, "userNotifications"), {
                 title: '¡Nueva Película Publicada!',
@@ -1958,16 +1981,14 @@ onAuthStateChanged(auth, async (user) => {
 
     if (!isInitialized) {
         isInitialized = true;
-        // 1. Inicializar el listener de Notificaciones antes de cargar el contenido
         setupRealtimeNotificationsListener(); 
         
-        // REQ 2: Inicializar el tema primero
         initializeTheme();
         showLoader();
         
         // CORRECCIÓN CRÍTICA: Cargamos estáticamente todos los datos al inicio.
         await fetchAppData();
-        
+
         await fetchAllGenres('movie');
         await fetchAllGenres('tv');
         updateNotificationIndicator(); // Inicializar el indicador de notificaciones
