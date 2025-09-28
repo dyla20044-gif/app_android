@@ -903,10 +903,6 @@ async function showDetailsScreen(item, type) {
     if (searchOverlay.classList.contains('active')) {
         searchOverlay.classList.remove('active');
         moviesScreen.classList.remove('search-active'); 
-        // Se eliminan de aquí para hacerlas incondicionales más abajo:
-        // document.querySelector('.top-nav').style.display = 'flex'; 
-        // document.querySelector('.bottom-nav').style.display = 'flex'; 
-        // document.getElementById('app-container').style.paddingBottom = '70px';
     }
     
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -914,7 +910,7 @@ async function showDetailsScreen(item, type) {
     appContainer.scrollTo({ top: 0, behavior: 'smooth' });
     showLoader();
     
-    // --- CORRECCIÓN CLAVE APLICADA: Asegura la visibilidad de las barras al regresar del login/otras pantallas ocultas. ---
+    // --- CORRECCIÓN CLAVE ANTERIOR: Asegura la visibilidad de las barras al regresar del login/otras pantallas ocultas. ---
     document.querySelector('.top-nav').style.display = 'flex'; 
     document.querySelector('.bottom-nav').style.display = 'flex'; 
     document.getElementById('app-container').style.paddingBottom = '70px';
@@ -1944,6 +1940,95 @@ async function fetchAppData() {
         console.error("Error fetching app data statically:", e);
     }
 }
+
+
+// --- Lógica de Gesto de Deslizamiento lateral (Edge Swipe) ---
+
+// Variables para el gesto de deslizamiento
+let startX = 0;
+let currentX = 0;
+let activeScreen = null;
+const swipeThreshold = 80; // Píxeles mínimos para considerar el retroceso
+const edgeThreshold = 30; // Área del borde izquierdo para activar el gesto
+
+// 1. touchstart: Inicia el seguimiento del dedo
+appContainer.addEventListener('touchstart', (e) => {
+    // Si hay más de un dedo o es la pantalla principal o la de Auth, salir
+    if (e.touches.length !== 1 || 
+        document.getElementById('home-screen').classList.contains('active') ||
+        document.getElementById('auth-screen').classList.contains('active')) {
+        return;
+    }
+
+    // Activar solo si el toque está cerca del borde izquierdo (ej. primeros 30px)
+    if (e.touches[0].clientX > edgeThreshold) {
+        return;
+    }
+
+    startX = e.touches[0].clientX;
+    currentX = startX;
+    // Captura la pantalla activa (debe ser la que se va a mover)
+    activeScreen = document.querySelector('.screen.active');
+    
+    if (activeScreen) {
+        // Desactiva la transición CSS para que el movimiento siga al dedo
+        activeScreen.style.transition = 'none'; 
+    }
+}, { passive: true }); // Usamos passive: true para no bloquear el scroll de la página.
+
+// 2. touchmove: Mueve la pantalla siguiendo el dedo
+appContainer.addEventListener('touchmove', (e) => {
+    if (!activeScreen || startX === 0) return;
+    
+    currentX = e.touches[0].clientX;
+    const diffX = currentX - startX;
+    
+    // Solo deslizar si el movimiento es hacia la derecha (retroceso)
+    if (diffX > 0) {
+        // Mueve la pantalla activa en el eje X
+        activeScreen.style.transform = `translateX(${diffX}px)`;
+    } else {
+        // Si el usuario empieza a deslizar hacia la izquierda, lo volvemos a la posición inicial e invalidamos el gesto
+        activeScreen.style.transform = 'translateX(0)';
+        startX = 0; 
+    }
+}, { passive: true }); 
+
+// 3. touchend: Decide si retroceder o regresar
+appContainer.addEventListener('touchend', () => {
+    if (!activeScreen || startX === 0) {
+        startX = 0;
+        return;
+    }
+
+    const diffX = currentX - startX;
+    
+    // Restablecer transición normal para el efecto de regreso o salida
+    activeScreen.style.transition = 'transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1)'; 
+
+    if (diffX > swipeThreshold) {
+        // Éxito: Deslizó lo suficiente (ejecutar retroceso)
+        activeScreen.style.transform = `translateX(100%)`; // Deslizar para salir
+
+        setTimeout(() => {
+            history.back(); // Ejecuta el retroceso. popstate se encarga de cambiar la pantalla.
+            // Restablecer la transformación después del popstate
+            if(activeScreen) {
+                activeScreen.style.transform = 'translateX(0)'; 
+            }
+        }, 300); 
+        
+    } else {
+        // Falla: Regresa a la posición original
+        activeScreen.style.transform = 'translateX(0)';
+    }
+
+    // Resetear variables
+    startX = 0;
+    currentX = 0;
+    activeScreen = null;
+});
+// --- Fin Lógica de Gesto de Deslizamiento lateral ---
 
 
 let isInitialized = false;
