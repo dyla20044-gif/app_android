@@ -903,15 +903,22 @@ async function showDetailsScreen(item, type) {
     if (searchOverlay.classList.contains('active')) {
         searchOverlay.classList.remove('active');
         moviesScreen.classList.remove('search-active'); 
-        document.querySelector('.top-nav').style.display = 'flex'; 
-        document.querySelector('.bottom-nav').style.display = 'flex'; 
-        document.getElementById('app-container').style.paddingBottom = '70px';
+        // Se eliminan de aquí para hacerlas incondicionales más abajo:
+        // document.querySelector('.top-nav').style.display = 'flex'; 
+        // document.querySelector('.bottom-nav').style.display = 'flex'; 
+        // document.getElementById('app-container').style.paddingBottom = '70px';
     }
     
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     detailsScreen.classList.add('active');
     appContainer.scrollTo({ top: 0, behavior: 'smooth' });
     showLoader();
+    
+    // --- CORRECCIÓN CLAVE APLICADA: Asegura la visibilidad de las barras al regresar del login/otras pantallas ocultas. ---
+    document.querySelector('.top-nav').style.display = 'flex'; 
+    document.querySelector('.bottom-nav').style.display = 'flex'; 
+    document.getElementById('app-container').style.paddingBottom = '70px';
+    // --- FIN CORRECCIÓN ---
     
     // LIMPIEZA INICIAL DE CONTENEDORES
     seasonsContainer.innerHTML = '';
