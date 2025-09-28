@@ -63,25 +63,14 @@ body {
     padding-bottom: 70px;
 }
 
-/* Nuevo REQUERIMIENTO: Animación de deslizamiento lateral para regresar (iOS-like) */
 .screen {
     display: none;
     padding-bottom: 70px;
-    /* Propiedades para el efecto de deslizamiento */
-    transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
-    will-change: transform;
-    position: absolute; /* Permite que la pantalla se deslice fuera del flujo */
-    width: 100%;
-    top: 0;
-    box-sizing: border-box;
 }
 
 .screen.active {
     display: block;
-    transform: translateX(0); /* Asegura que la pantalla activa esté en su posición */
 }
-/* Fin Nuevo REQUERIMIENTO */
-
 
 /* Loader */
 #loader {
