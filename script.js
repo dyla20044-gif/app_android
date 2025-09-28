@@ -1950,6 +1950,7 @@ let isInitialized = false;
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     
+    // Lógica de autenticación y estado PRO (siempre debe ejecutarse para actualizar la UI)
     if (user && !user.isAnonymous) {
         if (profileLoggedIn) {
             profileLoggedIn.style.display = 'block';
@@ -1987,11 +1988,14 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     if (!isInitialized) {
+        // 1. Mostrar el loader inmediatamente como primer paso de inicialización
+        showLoader();
+
+        // 2. Realizar todas las tareas de configuración y carga de datos
         isInitialized = true;
         setupRealtimeNotificationsListener(); 
         
         initializeTheme();
-        showLoader();
         
         // CORRECCIÓN CRÍTICA: Cargamos estáticamente todos los datos al inicio.
         await fetchAppData();
@@ -1999,6 +2003,12 @@ onAuthStateChanged(auth, async (user) => {
         await fetchAllGenres('movie');
         await fetchAllGenres('tv');
         updateNotificationIndicator(); // Inicializar el indicador de notificaciones
+        
+        // 3. Ocultar el loader y mostrar el contenedor principal de la aplicación.
+        appContainer.style.display = 'block';
+        hideLoader();
+
+        // 4. Navegar a la pantalla principal
         switchScreen('home-screen');
     }
 });
