@@ -769,13 +769,28 @@ if (btnPostComment) {
     });
 }
 
-// FIX 2: Ocultar Banner de Reproducción al enfocarse en el comentario
+// FIX 2: Ocultar Banner de Reproducción al enfocarse en el comentario Y FIX 3 (Redirección)
 if (commentInput) {
     commentInput.addEventListener('focus', () => {
+        // NUEVA LÓGICA: Si no está logueado, redirige y sale.
+        if (!currentUser || currentUser.isAnonymous) {
+            // Guardamos el estado actual para regresar aquí sin el error 404
+            history.pushState({ 
+                screen: 'auth-screen', 
+                previousScreen: 'details-screen', 
+                previousItem: currentFullTMDBItem, 
+                previousType: currentFullTMDBItem.type
+            }, '', '');
+            switchScreen('auth-screen');
+            commentInput.blur(); // Quita el foco para evitar que el teclado se quede abierto
+            return;
+        }
+
+        // Si está logueado, procede a ocultar el banner
         detailsScreen.classList.add('writing-comment');
     });
     commentInput.addEventListener('blur', () => {
-        // Solo restaura si no se está enviando el comentario (que ya lo maneja postComment)
+        // Solo restaura si no se está enviando el comentario
         if (!commentInput.value) {
             detailsScreen.classList.remove('writing-comment');
         }
@@ -1003,6 +1018,7 @@ async function fetchFromTMDB(endpoint, query = '') {
     try {
         const response = await fetch(url);
         if (!response.ok) {
+            // Si hay un error 404, lanzamos el error
             throw new Error(`Error de la API: ${response.status}`);
         }
         const data = await response.json();
@@ -1441,24 +1457,9 @@ window.addEventListener('popstate', async (event) => {
 authBackButton.addEventListener('click', (e) => {
     e.preventDefault();
     
-    const currentState = history.state;
-    
-    if (currentState && currentState.screen === 'auth-screen') {
-        if (currentState.previousScreen === 'details-screen') {
-            // FIX 1: Regresar a la película específica
-            
-            // Usamos history.back() para que el navegador regrese al estado anterior (Details Screen).
-            // La función window.onpopstate se encargará de llamar a showDetailsScreen con los datos correctos.
-            history.back();
-            
-        } else {
-            // Regresar al inicio o a la pantalla anterior genérica
-            history.back();
-        }
-    } else {
-        // Si no hay historial, ir a inicio
-        switchScreen('home-screen');
-    }
+    // FIX BUG DE NAVEGACIÓN: Usar history.back() hace que el navegador gestione el regreso,
+    // y window.onpopstate (el listener de arriba) se encarga de restaurar la vista y las barras.
+    history.back();
 });
 
 
