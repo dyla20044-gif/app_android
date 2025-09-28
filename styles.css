@@ -565,7 +565,7 @@ body {
 .details-content-scrollable {
     overflow-y: auto;
     flex-grow: 1;
-    padding-top: 226px;
+    padding-top: 230px;
     transition: padding-top 0.3s ease;
 }
 
@@ -1812,3 +1812,4 @@ body {
     color: var(--text-color);
     font-size: 1em;
 }
+
