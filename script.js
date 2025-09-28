@@ -917,13 +917,17 @@ async function showDetailsScreen(item, type) {
         const genreNames = item.genre_ids ? item.genre_ids.map(id => (type === 'movie' ? allMovieGenres[id] : allTvGenres[id])).filter(Boolean).join(', ') : '';
         detailsGenres.textContent = genreNames;
 
-        const credits = await fetchFromTMDB(type === 'movie' ? `movie/${item.id}/credits` : `tv/${item.id}/credits`);
+        // CORRECCIÓN CLAVE: Determinar el endpoint de TMDB basado en el tipo
+        const tmdbEndpointType = type === 'movie' ? 'movie' : 'tv';
+
+        const credits = await fetchFromTMDB(`${tmdbEndpointType}/${item.id}/credits`);
         
         const director = credits.crew.find(c => c.job === 'Director');
         directorName.textContent = director ? director.name : 'No disponible';
         const actors = credits.cast.slice(0, 3).map(a => a.name).join(', ');
         actorsList.textContent = actors || 'No disponible';
         
+        // CORRECCIÓN CLAVE: Buscar en la colección correcta de Firebase (moviesData o seriesData)
         const localData = (type === 'movie' ? moviesData : seriesData).find(d => d.tmdbId === item.id.toString());
         
         currentMovieOrSeries = localData || { tmdbId: item.id }; // Asegurar que tenga el tmdbId
@@ -950,7 +954,7 @@ async function showDetailsScreen(item, type) {
 
         }
         
-        const related = await fetchFromTMDB(type === 'movie' ? `movie/${item.id}/similar` : `tv/${item.id}/similar`);
+        const related = await fetchFromTMDB(`${tmdbEndpointType}/${item.id}/similar`);
         renderCarousel('related-movies', related, type);
 
     } catch (error) {
@@ -1378,10 +1382,11 @@ window.addEventListener('popstate', async (event) => {
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
 
     if (state) {
-        if (state.screen === 'details-screen') {
-            const item = state.item;
-            const type = state.type;
+        if (state.screen === 'details-screen' || (state.screen === 'auth-screen' && state.previousScreen === 'details-screen')) {
+            const item = state.item || state.previousItem;
+            const type = state.type || state.previousType;
             if (item && type) {
+                switchScreen('details-screen'); 
                 showDetailsScreen(item, type); 
             } else {
                 switchScreen('home-screen');
@@ -1960,12 +1965,8 @@ onAuthStateChanged(auth, async (user) => {
         initializeTheme();
         showLoader();
         
-        // CORRECCIÓN CRÍTICA: Cambiamos los onSnapshot globales por fetch estático.
+        // CORRECCIÓN CRÍTICA: Cargamos estáticamente todos los datos al inicio.
         await fetchAppData();
-
-        // Eliminamos los listeners globales de recarga aquí:
-        // const moviesColRef = collection(db, 'movies');
-        // onSnapshot(moviesColRef, ...)
         
         await fetchAllGenres('movie');
         await fetchAllGenres('tv');
