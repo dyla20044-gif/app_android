@@ -149,7 +149,10 @@ let allMovieGenres = {};
 let allTvGenres = {};
 let bannerInterval;
 let resumeAutoScrollTimeout;
-let currentUser = null;
+// [MODIFICACIÓN CLAVE] Eliminamos 'const' para hacerlo GLOBAL y accesible en index.html
+// DE: const currentUser = null;
+// A:
+let currentUser = null; 
 let currentMovieOrSeries = null;
 let currentFullTMDBItem = null; // Variable para guardar el objeto TMDB completo
 let lastSearchResults = [];
@@ -554,6 +557,7 @@ async function addMovieToHistory(item) {
 }
 
 function playEmbeddedVideo(embedCode, isPremium, currentUser, item) {
+    // [MODIFICACIÓN] Se usa currentUser.isPro directamente
     if (isPremium && (!currentUser || !currentUser.isPro)) {
         showProRestrictionModal();
     } else {
@@ -578,7 +582,8 @@ function renderMoviePlayButtons(localMovie, tmdbMovie) {
         playButton.onclick = async () => {
             showLoader();
             try {
-                const isProUser = currentUser && currentUser.isPro;
+                // [MODIFICACIÓN] Se usa currentUser.isPro directamente
+                const isProUser = currentUser && currentUser.isPro; 
                 let embedCode = null;
                 let isPremium = false;
 
@@ -656,7 +661,8 @@ async function renderSeriesButtons(localSeries, tmdbSeries) {
                          episodeButton.onclick = async () => {
                             showLoader();
                             try {
-                                const isProUser = currentUser && currentUser.isPro;
+                                // [MODIFICACIÓN] Se usa currentUser.isPro directamente
+                                const isProUser = currentUser && currentUser.isPro; 
                                 const hasProPlayer = !!localEpisode.proEmbedCode;
                                 const hasFreePlayer = !!localEpisode.freeEmbedCode;
                                 
@@ -1409,7 +1415,7 @@ function switchScreen(screenId) {
         }
     } else {
         topNav.style.display = 'flex';
-        if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen' || screenId === 'profile-screen' || screenId === 'details-screen' || screenId === 'events-screen') { 
+        if (screenId === 'home-screen' || screenId === 'movies-screen' || screenId === 'series-screen' || screenId === 'profile-screen' || screenId === 'details-screen' || screenId === 'events-screen' || screenId === 'tv-live-screen') { 
             bottomNav.style.display = 'flex';
             appContainer.style.paddingBottom = '70px';
         } else {
@@ -1960,6 +1966,8 @@ async function fetchAppData() {
 
 let isInitialized = false;
 onAuthStateChanged(auth, async (user) => {
+    // [MODIFICACIÓN CLAVE] Asignamos el usuario a la variable global.
+    // DE: const currentUser = user;
     currentUser = user;
     
     // Lógica de autenticación y estado PRO (siempre debe ejecutarse para actualizar la UI)
@@ -1975,12 +1983,14 @@ onAuthStateChanged(auth, async (user) => {
         const userDocSnap = await getDoc(userDocRef);
         
         if (userDocSnap.exists() && userDocSnap.data().isPro) {
+            // [MODIFICACIÓN CLAVE] Asignamos la propiedad isPro a la variable global.
             currentUser.isPro = true;
             if (proStatusButton) {
                 proStatusButton.textContent = 'Cuenta Premium Activada';
                 proStatusButton.disabled = true;
             }
         } else {
+            // [MODIFICACIÓN CLAVE] Asignamos la propiedad isPro a la variable global.
             currentUser.isPro = false;
             if (proStatusButton) {
                 proStatusButton.textContent = 'Activar Cuenta Premium';
@@ -1988,6 +1998,11 @@ onAuthStateChanged(auth, async (user) => {
             }
         }
     } else {
+        // En caso de usuario anónimo o no autenticado, aseguramos que isPro sea false.
+        if (currentUser) {
+             currentUser.isPro = false;
+        }
+
         if (profileLoggedIn) {
             profileLoggedIn.style.display = 'none';
         }
