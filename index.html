@@ -1,13 +1,671 @@
-<script>
-        // *** ESTO SE REEMPLAZARÁ CON LA COMPROBACIÓN REAL DE TU SCRIPT.JS ***
-        // Por ahora, asumimos que no es premium para probar el muro de pago.
-        let isPremiumUser = false; 
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cine HD</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 
-        // 1. LISTA DE FUENTES EXTERNAS (Reemplaza la lista de canales estática)
+    <style>
+        /* Contenedor de la nueva pantalla de TV */
+        #tv-live-screen {
+            padding: 0;
+            padding-bottom: 70px; 
+            background-color: #121212; 
+        }
+
+        #tv-player-container {
+            width: 100%;
+            /* Mantiene el aspecto 16:9, ideal para video en móvil */
+            aspect-ratio: 16 / 9; 
+            background-color: black;
+            position: relative;
+        }
+        
+        #tv-video-player {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+        }
+
+        #tv-current-channel-name {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: rgba(229, 9, 20, 0.8);
+            color: white;
+            padding: 5px 10px;
+            font-size: 0.9em;
+            font-weight: bold;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        
+        /* Botonera de Países y Categorías */
+        #country-nav {
+            display: flex;
+            overflow-x: scroll; /* Permite deslizar horizontalmente */
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 10px;
+            gap: 10px;
+            border-bottom: 1px solid #333;
+            background-color: #1E1E1E;
+        }
+
+        .country-button {
+            flex-shrink: 0; /* Evita que los botones se achiquen */
+            background-color: #333;
+            color: #ccc;
+            border: 1px solid #333;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+
+        .country-button.active {
+            background-color: #E50914; /* Rojo activo */
+            color: white;
+            border-color: #E50914;
+            font-weight: bold;
+        }
+
+        .country-button.premium {
+            background-color: #FFC300; /* Amarillo/Dorado para Premium */
+            color: #121212;
+            font-weight: bold;
+            border-color: #FFC300;
+        }
+
+        #tv-channel-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .tv-grid-item {
+            background-color: #1E1E1E; 
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .tv-grid-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .tv-grid-item.active {
+            border-color: #E50914; 
+        }
+
+        .tv-grid-item-content {
+            padding: 10px;
+            text-align: center;
+        }
+
+        .tv-grid-item-title {
+            font-size: 0.9em;
+            font-weight: bold;
+            color: white;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tv-grid-item-info {
+            font-size: 0.7em;
+            color: #B0B0B0;
+        }
+
+        /* Estilo para el muro de pago Premium */
+        #premium-wall {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+            background-color: #1E1E1E;
+            margin: 20px 10px;
+            border-radius: 12px;
+            border: 2px dashed #E50914;
+        }
+        #premium-wall h3 {
+            color: #E50914;
+            margin-top: 0;
+        }
+        .premium-cta-btn {
+            background-color: #E50914;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-top: 20px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .premium-cta-btn:hover {
+            background-color: #C40812;
+        }
+    </style>
+
+</head>
+<body>
+
+    <header class="top-nav">
+        <div class="nav-left">
+            <span class="logo-text">SALA CINE</span>
+        </div>
+        <div class="nav-center-icons">
+            <a href="https://t.me/+cSG-iHxIneg5YjAx" target="_blank" id="btn-open-community" class="icon-button" aria-label="Chat de Comunidad">
+                <i class="fas fa-users"></i>
+            </a>
+        </div>
+        <div class="nav-right">
+            <button id="btn-open-search" class="icon-button search-icon-button" aria-label="Abrir búsqueda"><i class="fas fa-search"></i></button>
+            <button id="btn-toggle-theme" class="icon-button" aria-label="Tema Dual"><i class="fas fa-moon"></i></button>
+            <button id="btn-open-avisos" class="icon-button" aria-label="Notificaciones">
+                <i class="fas fa-bell"></i>
+                <span id="notification-indicator" class="indicator hidden"></span>
+            </button>
+        </div>
+    </header>
+
+    <div class="search-overlay" id="search-overlay">
+        <input type="text" id="search-input" placeholder="Buscar películas...">
+        <button id="close-search-button"><i class="fas fa-times"></i></button>
+    </div>
+
+    <main id="app-container" style="display:none;">
+        <div id="home-screen" class="screen active">
+            <section class="hero-banner-carousel">
+                <div id="banner-list" class="movie-list horizontal-scroll"></div>
+            </section>
+
+            <div id="carousels-container">
+                <section class="category-section" id="history-section" style="display:none;">
+                    <div class="category-header">
+                        <h2>Historial</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="history" data-type="movie">Ver más</a>
+                    </div>
+                    <div id="history-list" class="movie-list horizontal-scroll"></div>
+                </section>
+                <section class="category-section">
+                    <div class="category-header">
+                        <h2>Populares</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="movie/popular" data-type="movie">Ver más</a>
+                    </div>
+                    <div id="populares-movies" class="movie-list horizontal-scroll"></div>
+                </section>
+                
+                <section class="category-section">
+                    <div class="category-header">
+                        <h2>Tendencias</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="trending/all/day" data-type="movie">Ver más</a>
+                    </div>
+                    <div id="tendencias-movies" class="movie-list horizontal-scroll"></div>
+                </section>
+
+                 <section class="category-section">
+                    <div class="category-header">
+                        <h2>Acción y Aventura</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="discover/movie?with_genres=28" data-type="movie">Ver más</a>
+                    </div>
+                    <div id="accion-movies" class="movie-list horizontal-scroll"></div>
+                </section>
+                
+                <section class="category-section">
+                    <div class="category-header">
+                        <h2>Terror y Misterio</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="discover/movie?with_genres=27,9648" data-type="movie">Ver más</a>
+                    </div>
+                    <div id="terror-movies" class="movie-list horizontal-scroll"></div>
+                </section>
+
+                <section class="category-section">
+                    <div class="category-header">
+                        <h2>Animación</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="discover/movie?with_genres=16" data-type="movie">Ver más</a>
+                    </div>
+                    <div id="animacion-movies" class="movie-list horizontal-scroll"></div>
+                </section>
+
+                <section class="category-section">
+                    <div class="category-header">
+                        <h2>Documentales</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="discover/movie?with_genres=99" data-type="movie">Ver más</a>
+                    </div>
+                    <div id="documentales-movies" class="movie-list horizontal-scroll"></div>
+                </section>
+
+                <section class="category-section">
+                    <div class="category-header">
+                        <h2>Ciencia Ficción</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="discover/movie?with-genres=878" data-type="movie">Ver más</a>
+                    </div>
+                    <div id="scifi-movies" class="movie-list horizontal-scroll"></div>
+                </section>
+
+                <section class="category-section">
+                    <div class="category-header">
+                        <h2>Series Populares</h2>
+                        <a href="#" class="see-more-btn" data-endpoint="tv/popular" data-type="tv">Ver más</a>
+                    </div>
+                    <div id="populares-series" class="movie-list horizontal-scroll"></div>
+                </section>
+            </div>
+        </div>
+
+
+        <div id="movies-screen" class="screen">
+            <div class="screen-header">
+                <h2>Películas</h2>
+                <button id="genres-button" class="icon-button"><i class="fas fa-ellipsis-v"></i></button>
+            </div>
+            <div id="search-filters" class="filter-bar">
+                <button class="filter-button active" data-filter="all">Todo</button>
+                <button class="filter-button" data-filter="movie">Películas</button>
+                <button class="filter-button" data-filter="tv">Series</button>
+            </div>
+            <div id="all-movies-grid" class="movie-grid"></div>
+        </div>
+
+        <div id="series-screen" class="screen">
+            <div class="screen-header">
+                <h2>Series de TV</h2>
+                <button id="series-genres-button" class="icon-button"><i class="fas fa-ellipsis-v"></i></button>
+            </div>
+            <div id="all-series-grid" class="movie-grid"></div>
+        </div>
+
+        <div id="tv-live-screen" class="screen">
+            <div id="tv-player-container">
+                <video id="tv-video-player" controls autoplay playsinline poster="ruta/a/imagen/negra.png"></video>
+                <div id="tv-current-channel-name">Cargando canales...</div>
+            </div>
+
+            <div id="country-nav">
+                </div>
+
+            <div id="tv-content-container">
+                <div id="premium-wall" style="display:none;">
+                    <h3>¡Contenido Premium!</h3>
+                    <p>Para acceder a la sección de Deportes en Vivo y otros canales exclusivos, por favor, activa tu cuenta **Premium**.</p>
+                    <button class="premium-cta-btn" onclick="showSection('profile-screen')">Activar Premium ahora</button>
+                    <p class="tv-grid-item-info" style="margin-top: 15px; color:#aaa;">(Selecciona otra categoría si ya tienes Premium.)</p>
+                </div>
+                <div id="tv-channel-grid">
+                    </div>
+            </div>
+        </div>
+        <div id="profile-screen" class="screen">
+            <div id="profile-logged-in" style="display: none;">
+                <div class="screen-header">
+                    <h2>Mi Perfil</h2>
+                    <button id="signout-button" class="icon-button"><i class="fas fa-sign-out-alt"></i></button>
+                </div>
+                <div class="profile-options">
+                    <button id="pro-status-button" class="button profile-button"><i class="fas fa-crown"></i> <span>Activar Cuenta Premium</span></button>
+                    <button id="favorites-button" class="button secondary profile-button" data-screen="favorites-screen"><i class="fas fa-heart"></i> <span>Mis Favoritos</span></button>
+                    <button id="request-button" class="button secondary profile-button" data-screen="request-screen"><i class="fas fa-plus-circle"></i> <span>Solicitar Película</span></button>
+                    <button id="settings-button" class="button secondary profile-button" data-screen="settings-screen"><i class="fas fa-cog"></i> <span>Configuración</span></button>
+                </div>
+            </div>
+            <div id="profile-logged-out" style="display: block;">
+                <div class="screen-header">
+                    <h2>Mi Perfil</h2>
+                    <a href="#" id="profile-login-link" class="text-button">Iniciar sesión</a>
+                </div>
+                <div class="profile-cta">
+                    <h2 class="profile-cta-title">Con Premium tienes más</h2>
+                    <div class="premium-benefits">
+                        <p><i class="fas fa-check"></i> Series y Películas Premium</p>
+                        <p><i class="fas fa-check"></i> Más contenido que cualquier otro streaming</p>
+                        <p><i class="fas fa-check"></i> Cancela cuando quieras</p>
+                        <p><i class="fas fa-check"></i> Sin anuncios</p>
+                    </div>
+                    <button class="button profile-cta-button" id="create-account-button">Crea tu cuenta Premium</button>
+                </div>
+                <div class="profile-footer-links">
+                    <a href="#" id="profile-my-list" class="profile-link">Mi lista</a>
+                    <a href="#" id="profile-privacy" class="profile-link">Política de privacidad</a>
+                    <a href="#" id="profile-terms" class="profile-link">Términos de uso</a>
+                    <a href="#" id="profile-subscription" class="profile-link">Condiciones de Suscripción</a>
+                    <a href="#" id="profile-help-center" class="profile-link">Centro de ayuda</a>
+                </div>
+            </div>
+        </div>
+
+        <div id="favorites-screen" class="screen">
+            <div class="screen-header">
+                <h2>Mis Favoritos</h2>
+            </div>
+            <div id="favorites-grid" class="movie-grid"></div>
+        </div>
+
+        <div id="request-screen" class="screen">
+            <div class="screen-header">
+                <h2>Solicitar Película</h2>
+            </div>
+            <div id="request-message" class="request-message-box"></div>
+            <div class="request-form">
+                <input type="text" id="movie-request-input" placeholder="Nombre de la película o serie...">
+                <button id="submit-request-button" class="button">Enviar Solicitud</button>
+            </div>
+        </div>
+
+        <div id="privacy-screen" class="screen">
+            <div class="screen-header">
+                <h2>Política de Privacidad</h2>
+            </div>
+            <div class="policy-content">
+                <p>En Sala Cine, la seguridad y privacidad de tus datos es nuestra máxima prioridad. Recopilamos la información mínima necesaria para ofrecerte un servicio personalizado y proteger tu cuenta. Toda tu información está resguardada con los más altos estándares de seguridad y puedes cancelar tu suscripción en cualquier momento.</p>
+                <p>Nuestra plataforma se actualiza diariamente con nuevas funciones y medidas de seguridad para garantizar una experiencia óptima y segura para todos nuestros usuarios.</p>
+            </div>
+        </div>
+
+        <div id="terms-screen" class="screen">
+            <div class="screen-header">
+                <h2>Términos de Uso</h2>
+            </div>
+            <div class="policy-content">
+                <p>Bienvenido a Sala Cine. Al usar nuestros servicios, aceptas cumplir con los siguientes términos de uso. Sala Cine te ofrece una plataforma de streaming de contenido bajo demanda, incluyendo películas y series. El acceso a contenido Premium requiere una suscripción de pago. Nos reservamos el derecho de modificar estos términos en cualquier momento.</p>
+                <p>No se permite el uso no autorizado de nuestro contenido, incluyendo la descarga, distribución o copia sin permiso. El incumplimiento de estos términos puede resultar en la suspensión de tu cuenta.</p>
+            </div>
+        </div>
+
+        <div id="help-screen" class="screen">
+            <div class="screen-header">
+                <h2>Centro de Ayuda</h2>
+            </div>
+            <div class="help-content">
+                <div class="help-options">
+                    <button class="help-option-button">Error en reproducción de video</button>
+                    <button class="help-option-button">Problemas con el inicio de sesión</button>
+                    <button class="help-option-button">Problemas con la app</button>
+                    <button class="help-option-button">Cambiar mi plan Premium</button>
+                </div>
+                <a href="https://t.me/tu-usuario-de-telegram" target="_blank" class="button contact-button">Contáctate con nosotros</a>
+            </div>
+        </div>
+        
+        <div id="settings-screen" class="screen">
+            <div class="screen-header">
+                <h2>Configuración</h2>
+            </div>
+            <div class="settings-content">
+                <p>Aquí puedes ajustar las configuraciones de tu cuenta.</p>
+            </div>
+        </div>
+
+
+        <div id="details-screen" class="screen">
+            <div class="details-header-section">
+                <div id="details-poster-top">
+                    <div id="embedded-player-container" style="display: none;"></div>
+                    <div class="poster-overlay">
+                        <div id="details-play-button-container">
+                            <button id="details-play-button" class="play-button"><i class="fas fa-play"></i></button>
+                            <button id="request-movie-button" class="play-button" style="display: none;"><i class="fas fa-paper-plane"></i> Pedir ahora</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="details-content-scrollable">
+                <div class="details-info-section">
+                    <div id="details-request-message" class="request-message-box"></div>
+                    <div class="movie-header">
+                        <h2 id="details-title"></h2>
+                        <div class="movie-actions">
+                            <i id="share-button" class="fas fa-share-alt"></i>
+                            <i id="favorite-button" class="far fa-heart"></i>
+                        </div>
+                    </div>
+                    <div class="movie-metadata">
+                        <div class="movie-metrics">
+                            <span id="view-count-display"><i class="fas fa-eye"></i> 0 Vistas</span>
+                            <span id="like-count-display-text"><i class="fas fa-heart"></i> 0 Me Gusta</span>
+                        </div>
+                        <div class="movie-attributes">
+                            <span id="details-year"></span>
+                            <span id="details-genres"></span>
+                        </div>
+                    </div>
+                    <p id="details-sinopsis"></p>
+                    <button id="read-more-button" class="text-button">Ver más</button>
+                    <div id="movie-cast-info" class="movie-cast">
+                        <p>Director: <span id="director-name"></span></p>
+                        <p>Actores: <span id="actors-list"></span></p>
+                    </div>
+
+                    <div id="seasons-container" class="episode-select-container" style="display:none;"></div>
+                    <div id="episodes-container"></div>
+                    <div class="tabs-container">
+                        <div class="tabs-header" id="details-tabs-header">
+                            <button class="tab-button active" data-tab="related-content-pane">Similares</button>
+                            <button class="tab-button" data-tab="comments-content-pane">Comentarios</button>
+                        </div>
+                        
+                        <div class="tabs-content" id="details-tabs-content">
+                            <div class="tab-pane active" id="related-content-pane">
+                                <section class="related-section">
+                                    <div id="related-movies" class="movie-list horizontal-scroll"></div>
+                                </section>
+                            </div>
+                            
+                            <div class="tab-pane" id="comments-content-pane">
+                                <div class="comments-container">
+                                    <h3>Comentarios</h3>
+                                    <div class="comment-input-area">
+                                        <input type="text" id="comment-input" placeholder="Escribe un comentario...">
+                                        <button id="btn-post-comment" class="button primary"><i class="fas fa-paper-plane"></i></button>
+                                    </div>
+                                    <div id="comments-feed" class="comments-feed">
+                                        <p id="no-comments-message" style="color:#888; display:none;">Sé el primero en comentar.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="auth-screen" class="screen full-screen-auth">
+            <header class="auth-header">
+                <a href="#" class="back-button" id="auth-back-button"><i class="fas fa-arrow-left"></i></a>
+                <div class="auth-header-title">Sala Cine</div>
+                <a href="#" class="login-link" id="auth-login-link">Iniciar sesión</a>
+            </header>
+            <div class="auth-content-container">
+                <div id="login-form" class="auth-form active-form">
+                    <h2 class="auth-title">Inicia sesión</h2>
+                    <div id="login-message" class="auth-message-box"></div>
+                    <input type="email" id="login-email" placeholder="Correo electrónico">
+                    <div class="password-container">
+                        <input type="password" id="login-password" placeholder="Contraseña">
+                        <i class="fas fa-eye password-toggle"></i>
+                    </div>
+                    <button class="button auth-button primary" id="login-button">Iniciar sesión</button>
+                    <p class="auth-separator">o</p>
+                    <p class="switch-form-text">¿No tienes cuenta? <a href="#" id="show-signup-link">Crea una</a></p>
+                    <a href="#" class="forgot-password-link">¿Olvidaste tu contraseña?</a>
+                </div>
+                <div id="signup-form" class="auth-form">
+                    <h2 class="auth-title">Crea tu cuenta</h2>
+                    <div id="signup-message" class="auth-message-box"></div>
+                    <input type="email" id="signup-email" placeholder="ejemplo@email.com">
+                    <div class="password-container">
+                        <input type="password" id="signup-password" placeholder="Contraseña">
+                        <i class="fas fa-eye password-toggle"></i>
+                    </div>
+                    <div class="terms-checkbox">
+                        <input type="checkbox" id="terms-checkbox">
+                        <label for="terms-checkbox" class="terms-label">Acepto los Términos de Uso de Sala Cine y reconozco que mi información personal será utilizada conforme al Aviso de Privacidad de Sala Cine.</label>
+                    </div>
+                    <button class="button auth-button primary" id="signup-button">Comenzar</button>
+                    <p class="auth-separator">o</p>
+                    <p class="switch-form-text">¿Ya tienes cuenta? <a href="#" id="show-login-link">Inicia sesión</a></p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <nav class="bottom-nav">
+        <a href="#" class="nav-item active" data-screen="home-screen">
+            <i class="fas fa-home"></i>
+            <span>Inicio</span>
+        </a>
+        <a href="#" class="nav-item" data-screen="movies-screen">
+            <i class="fas fa-film"></i>
+            <span>Películas</span>
+        </a>
+        <a href="#" class="nav-item" data-screen="series-screen">
+            <i class="fas fa-tv"></i>
+            <span>Series</span>
+        </a>
+        <a href="#" class="nav-item" data-screen="tv-live-screen">
+            <i class="fas fa-satellite-dish"></i>
+            <span>TV</span>
+        </a>
+        <a href="#" class="nav-item" data-screen="profile-screen">
+            <i class="fas fa-user"></i>
+            <span>Perfil</span>
+        </a>
+    </nav>
+
+    <div id="video-modal" class="modal">
+        <div class="modal-content video-content">
+            <span class="close-button">&times;</span>
+            <video id="video-player" controls></video>
+        </div>
+    </div>
+    
+    <div id="premium-info-modal" class="modal-from-bottom">
+        <div class="modal-content">
+            <span class="close-button" id="premium-info-close">&times;</span>
+            <h2 class="premium-info-title">Con Premium tienes más</h2>
+            <div class="premium-benefits">
+                <p><i class="fas fa-check"></i> Series y Películas Premium</p>
+                <p><i class="fas fa-check"></i> Más novelas que cualquier otro streaming</p>
+                <p><i class="fas fa-check"></i> Cancela cuando quieras</p>
+                <p><i class="fas fa-check"></i> Sin anuncios</p>
+            </div>
+            <button class="button premium-cta-button" id="premium-info-cta">Empezar ya</button>
+            <p class="premium-info-login">Ya tengo plan Premium, <a href="#" id="premium-info-login-link">iniciar sesión</a>.</p>
+        </div>
+    </div>
+
+    <div id="payment-modal" class="modal">
+        <div class="modal-content payment-content">
+            <span class="close-button" id="payment-close">&times;</span>
+            <h2>Activar Cuenta Premium</h2>
+            <p>Disfruta de nuestra selección Premium sin anuncios y con acceso anticipado a nuevas películas y series. Protegemos tus datos con los más altos estándares de seguridad, al igual que plataformas como Netflix y Disney Plus.</p>
+            <div class="plans-container">
+                <div class="plan-card">
+                    <h3>Plan Mensual</h3>
+                    <p>1 mes por $1.99</p>
+                    <button class="button buy-button" data-plan="monthly">Comprar</button>
+                </div>
+                <div class="plan-card">
+                    <h3>Plan Anual</h3>
+                    <p>1 año por $19.99</p>
+                    <button class="button buy-button" data-plan="annual">Comprar</button>
+                </div>
+            </div>
+            <p class="legal-text">© Cine. Todos los derechos reservados. Su suscripción se renueva automáticamente. Puede cancelar en cualquier momento.</p>
+        </div>
+    </div>
+    
+    <div id="free-ad-modal" class="modal-from-bottom">
+        <div class="modal-content">
+            <span class="close-button free-modal-close-button">&times;</span>
+            <h2 class="modal-title-ad">Versión Gratis con Publicidad</h2>
+            <p class="modal-text-ad">Estás a punto de ver la versión gratis de esta película. calidad (720p).Tendrás un poco de publicidad durante la reproducción.</p>
+            <div class="modal-buttons-ad">
+                <button id="ver-gratis-button" class="button">Ver Gratis 720p</button>
+                <button id="ver-pro-button" class="button secondary">Ver PRO HD (sin anuncios 1080p)</button>
+            </div>
+            <p class="modal-small-text">¡El plan PRO es muy accesible!</p>
+        </div>
+    </div>
+
+    <div id="pro-restriction-modal" class="modal-from-bottom">
+        <div class="modal-content">
+            <span class="close-button free-modal-close-button">&times;</span>
+            <h2 class="modal-title-ad">¡Esta película solo está disponible en la versión PRO!</h2>
+            <p class="modal-small-text" id="pro-modal-text">Los planes están desde $1,99 mensual.</p>
+            <div class="modal-buttons-ad">
+                <button id="pro-modal-cta" class="button red">Ver ahora PRO</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="user-notifications-modal" class="modal-from-bottom">
+        <div class="modal-content notifications-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Notificaciones</h2>
+                <span class="close-button" id="notifications-close">&times;</span>
+            </div>
+            
+            <div id="notifications-list" class="notifications-list">
+                <p id="empty-notifications-message" class="empty-message hidden">Aún no tienes notificaciones.</p>
+            </div>
+
+            <button id="btn-clear-all-notifications" class="button secondary full-width mt-10 hidden">Borrar todas</button>
+        </div>
+    </div>
+
+    <div id="add-event-modal" class="modal-from-bottom">
+        <div class="modal-content auth-content">
+            <span class="close-button" id="add-event-close">&times;</span>
+            <h2 class="auth-title">Agregar Evento</h2>
+            <div id="event-message" class="auth-message-box"></div> 
+            <form id="add-event-form">
+                <input type="url" id="event-image-link" placeholder="Enlace de la fotografía (URL)" required>
+                <textarea id="event-description" placeholder="Descripción del evento" required rows="4"></textarea>
+                <button type="submit" id="btn-submit-event" class="button primary">Guardar Evento</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="admin-avisos-modal" class="modal-from-bottom">
+        <div class="modal-content admin-avisos-content">
+            <span class="close-button" id="avisos-close">&times;</span>
+            <h2 class="modal-title-ad">Publicar Contenido (Admin)</h2>
+            <p class="modal-text-ad">Ingrese el link del reproductor y elija la acción:</p>
+            <input type="text" id="admin-embed-input" placeholder="Enlace del Reproductor (ej: link-pelicula-1)">
+            <div class="modal-buttons-ad">
+                <button id="btn-save-app" class="button secondary">Guardar solo en la app</button>
+                <button id="btn-save-publish-channel" class="button">Guardar y publicar en el canal</button>
+                <button id="btn-save-notify-app-new" class="button red">Guardar en la app y notificar</button>
+            </div>
+            <p class="modal-small-text">Esta acción es solo visible para usuarios con rol de administrador.</p>
+        </div>
+    </div>
+
+    <div class="footer-text">©Cine. Todos los derechos reservados.</div>
+    <div id="loader"><div class="loader-spinner"></div><p>Cargando...</p></div>
+
+    <script>
+        // ESTA VARIABLE SE DEFINE EN TU script.js PERO LA HACEMOS GLOBAL AQUÍ
+        // para que las funciones de tv_filterChannels puedan acceder al estado de autenticación.
+        // La inicializamos como objeto vacío para evitar errores antes de que script.js cargue.
+        let currentUser = {}; 
+
+        // 1. LISTA DE FUENTES EXTERNAS (Con la URL real de IPTV-ORG)
         const country_sources = {
             MX: { name: "México", url: "https://iptv-org.github.io/iptv/countries/mx.m3u" },
             EC: { name: "Ecuador", url: "https://iptv-org.github.io/iptv/countries/ec.m3u" },
-            ES: { name: "España", url: "https://iptv-org.github.io/iptv/countries/es.m3u" },
+            AR: { name: "Argentina", url: "https://iptv-org.github.io/iptv/countries/ar.m3u" },
+            CL: { name: "Chile", url: "https://iptv-org.github.io/iptv/countries/cl.m3u" },
             MUSIC: { name: "Música", url: "https://iptv-org.github.io/iptv/categories/music.m3u" },
             DOCS: { name: "Documentales", url: "https://iptv-org.github.io/iptv/categories/documentaries.m3u" },
             ALL: { name: "Todos", url: "https://iptv-org.github.io/iptv/index.m3u" },
@@ -29,7 +687,7 @@
 
 
         // ----------------------------------------------------
-        // FUNCIONES CORE DE REPRODUCCIÓN (Ligeramente modificadas para usar la caché)
+        // FUNCIONES CORE DE REPRODUCCIÓN 
         // ----------------------------------------------------
         function tv_loadChannel(item, index, countryCode) {
             const channels = cached_channels[countryCode];
@@ -41,20 +699,21 @@
             
             tv_current_name.textContent = `Reproduciendo: ${name} (${countryCode})`;
             
-            // Manejo de la clase activa (rojo)
             if (tv_currentItem) {
                 tv_currentItem.classList.remove('active');
             }
-            item.classList.add('active');
-            tv_currentItem = item;
+            // Aseguramos que el elemento exista antes de intentar poner la clase 'active'
+            const currentItem = document.querySelector(`.tv-grid-item[data-index="${index}"][data-country="${countryCode}"]`);
+            if (currentItem) {
+                 currentItem.classList.add('active');
+                 tv_currentItem = currentItem;
+            }
 
-            // Limpiar y reiniciar HLS
             if (hls_instance) {
                 hls_instance.destroy();
                 hls_instance = null;
             }
             
-            // Cargar y reproducir (lógica HLS/Nativo)
             if (Hls.isSupported() && (url.endsWith('.m3u8') || url.includes('.m3u8'))) {
                 hls_instance = new Hls();
                 hls_instance.attachMedia(tv_video);
@@ -87,12 +746,11 @@
 
             let htmlContent = '';
             channels.forEach((channel, index) => {
-                // Obtener solo el nombre del canal limpiando los atributos EXTING
                 const name = channel.name.split(',').pop().trim().replace(/\s*\(.*?\)\s*$/, '');
-                const info = channel.info || 'HD/SD'; // Usar la categoría si no hay info
+                const info = channel.info || 'HD/SD';
 
                 htmlContent += `
-                    <div class="tv-grid-item" data-index="${index}" onclick="tv_loadChannel(this, ${index}, '${countryCode}')">
+                    <div class="tv-grid-item" data-index="${index}" data-country="${countryCode}" onclick="tv_loadChannel(this, ${index}, '${countryCode}')">
                         <div class="tv-grid-item-content">
                             <div class="tv-grid-item-title">${name}</div>
                             <div class="tv-grid-item-info">${info} | En vivo</div>
@@ -103,9 +761,6 @@
             tv_channel_grid.innerHTML = htmlContent;
         }
 
-        // ----------------------------------------------------
-        // FUNCIÓN DE PARSEO DE M3U (Similar a la primera vez)
-        // ----------------------------------------------------
         function parseM3U(m3uContent, categoryName) {
             const channels = [];
             const lines = m3uContent.split('\n');
@@ -121,13 +776,16 @@
 
                     currentChannel = {
                         name: name,
-                        info: categoryName, // Usamos el nombre de la categoría/país como info inicial
+                        info: categoryName,
                         tvgId: tvgID
                     };
                 } else if (line.startsWith('http') || line.startsWith('https')) {
                     if (currentChannel.name) {
                         currentChannel.url = line.trim();
-                        channels.push(currentChannel);
+                        // Filtramos streams obviamente rotos o con geobloqueo/avisos
+                        if (!currentChannel.name.includes('[Geo-blocked]')) {
+                            channels.push(currentChannel);
+                        }
                     }
                     currentChannel = {};
                 }
@@ -146,9 +804,9 @@
 
             const source = country_sources[countryCode];
             
-            // 2. Lógica de Muro Premium
-            if (source.premium && !isPremiumUser) {
-                // Mostrar muro de pago y limpiar reproductor
+            // 2. Lógica de Muro Premium (Integración Real con currentUser)
+            // currentUser.isPro es donde tu script.js almacena el estado Premium
+            if (source.premium && (!currentUser || !currentUser.isPro)) {
                 tv_channel_grid.style.display = 'none';
                 premium_wall.style.display = 'block';
                 tv_current_name.textContent = "¡Sección Premium! Activa tu plan.";
@@ -166,10 +824,8 @@
             let channelsToRender = [];
 
             if (cached_channels[countryCode]) {
-                // Usar caché si ya se ha cargado antes
                 channelsToRender = cached_channels[countryCode];
             } else {
-                // Cargar desde URL externa
                 try {
                     const response = await fetch(source.url);
                     if (!response.ok) throw new Error('Error al cargar la lista M3U');
@@ -177,7 +833,7 @@
                     const m3uContent = await response.text();
                     channelsToRender = parseM3U(m3uContent, source.name);
                     
-                    // Almacenar en caché
+                    // Almacenar en caché solo si la carga fue exitosa
                     cached_channels[countryCode] = channelsToRender; 
 
                 } catch (error) {
@@ -191,19 +847,34 @@
             // 4. Renderizar y cargar el primer canal
             tv_renderChannelGrid(channelsToRender, countryCode);
 
-            const firstChannel = document.querySelector('#tv-channel-grid .tv-grid-item');
+            const firstChannel = document.querySelector(`#tv-channel-grid .tv-grid-item[data-country="${countryCode}"]`);
             if (firstChannel) {
-                // Usamos el índice 0 para cargar el primer canal de la lista
                 tv_loadChannel(firstChannel, 0, countryCode); 
             } else {
                 tv_current_name.textContent = `No se encontraron canales disponibles para ${source.name}.`;
-                tv_channel_grid.innerHTML = `<p style="color:#aaa; text-align:center; padding-top:20px;">No hay canales en esta sección.</p>`;
+                tv_channel_grid.innerHTML = `<p style="color:#aaa; text-align:center; padding-top:20px;">No hay canales en esta sección. Intenta con otra o recarga la página.</p>`;
                 if (hls_instance) hls_instance.destroy();
                 tv_video.src = '';
             }
         }
 
-        // [ ... Mantenemos la función handleScreenNavigation y la lógica de inicialización ... ]
+        // ----------------------------------------------------
+        // LÓGICA DE NAVEGACIÓN Y RENDERIZADO DE BOTONES
+        // ----------------------------------------------------
+        
+        function renderCountryButtons() {
+            country_nav.innerHTML = '';
+            for (const code in country_sources) {
+                const source = country_sources[code];
+                const button = document.createElement('button');
+                button.className = `country-button ${source.premium ? 'premium' : ''}`;
+                button.textContent = source.name;
+                button.setAttribute('data-country', code);
+                button.onclick = () => tv_filterChannels(code);
+                country_nav.appendChild(button);
+            }
+        }
+        
         function handleScreenNavigation(screenId) {
             const screens = document.querySelectorAll('.screen');
             screens.forEach(screen => {
@@ -219,8 +890,11 @@
 
             // Lógica específica para la TV: Al entrar, activar el filtro por defecto (México)
             if (screenId === 'tv-live-screen') {
-                // Solo cargamos la lista si la cuadrícula está vacía (primera carga)
-                if (tv_channel_grid.children.length === 0 || document.querySelector('#country-nav .country-button.active') === null) {
+                if (country_nav.children.length === 0) {
+                    renderCountryButtons();
+                }
+                // Si ya estamos en la TV, cargamos o recargamos el primer filtro (MX)
+                if (document.querySelector('#country-nav .country-button.active') === null || tv_channel_grid.children.length === 0) {
                     tv_filterChannels('MX');
                 }
             }
