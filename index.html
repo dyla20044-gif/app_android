@@ -10,16 +10,17 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 
     <style>
+        /* [ ... Mantenemos los estilos CSS de la versión anterior ... ] */
+        
         /* Contenedor de la nueva pantalla de TV */
         #tv-live-screen {
             padding: 0;
-            padding-bottom: 70px; /* Deja espacio para la barra de navegación */
-            background-color: #121212; /* Fondo oscuro */
+            padding-bottom: 70px; 
+            background-color: #121212; 
         }
 
         #tv-player-container {
             width: 100%;
-            /* Mantiene el aspecto 16:9, ideal para video en móvil */
             aspect-ratio: 16 / 9; 
             background-color: black;
             position: relative;
@@ -36,7 +37,7 @@
             top: 0;
             left: 0;
             width: 100%;
-            background-color: rgba(229, 9, 20, 0.8); /* Rojo oscuro semi-transparente */
+            background-color: rgba(229, 9, 20, 0.8);
             color: white;
             padding: 5px 10px;
             font-size: 0.9em;
@@ -44,22 +45,58 @@
             text-align: center;
             box-sizing: border-box;
         }
+        
+        /* Botonera de Países y Categorías */
+        #country-nav {
+            display: flex;
+            overflow-x: scroll; /* Permite deslizar horizontalmente */
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 10px;
+            gap: 10px;
+            border-bottom: 1px solid #333;
+            background-color: #1E1E1E;
+        }
+
+        .country-button {
+            flex-shrink: 0; /* Evita que los botones se achiquen */
+            background-color: #333;
+            color: #ccc;
+            border: 1px solid #333;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+
+        .country-button.active {
+            background-color: #E50914; /* Rojo activo */
+            color: white;
+            border-color: #E50914;
+            font-weight: bold;
+        }
+
+        .country-button.premium {
+            background-color: #FFC300; /* Amarillo/Dorado para Premium */
+            color: #121212;
+            font-weight: bold;
+            border-color: #FFC300;
+        }
 
         #tv-channel-grid {
             display: grid;
-            /* Cuadrícula de 2 columnas para móviles, mejor usabilidad */
             grid-template-columns: repeat(2, 1fr); 
             gap: 10px;
             padding: 10px;
         }
 
         .tv-grid-item {
-            background-color: #1E1E1E;
+            background-color: #1E1E1E; 
             border-radius: 8px;
             overflow: hidden;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
-            border: 2px solid transparent; 
+            border: 2px solid transparent;
         }
         
         .tv-grid-item:hover {
@@ -68,7 +105,7 @@
         }
         
         .tv-grid-item.active {
-            border-color: #E50914; /* Borde rojo activo (el color principal de tu app) */
+            border-color: #E50914; 
         }
 
         .tv-grid-item-content {
@@ -90,11 +127,33 @@
             color: #B0B0B0;
         }
 
-        /* Adaptación para tablets (3 columnas) */
-        @media (min-width: 600px) {
-            #tv-channel-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
+        /* Estilo para el muro de pago Premium */
+        #premium-wall {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+            background-color: #1E1E1E;
+            margin: 20px 10px;
+            border-radius: 12px;
+            border: 2px dashed #E50914;
+        }
+        #premium-wall h3 {
+            color: #E50914;
+            margin-top: 0;
+        }
+        .premium-cta-btn {
+            background-color: #E50914;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-top: 20px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .premium-cta-btn:hover {
+            background-color: #C40812;
         }
     </style>
 
@@ -130,6 +189,7 @@
             <section class="hero-banner-carousel">
                 <div id="banner-list" class="movie-list horizontal-scroll"></div>
             </section>
+
             <div id="carousels-container">
                 <section class="category-section" id="history-section" style="display:none;">
                     <div class="category-header">
@@ -204,6 +264,7 @@
             </div>
         </div>
 
+
         <div id="movies-screen" class="screen">
             <div class="screen-header">
                 <h2>Películas</h2>
@@ -227,11 +288,29 @@
 
         <div id="tv-live-screen" class="screen">
             <div id="tv-player-container">
-                <video id="tv-video-player" controls autoplay playsinline></video>
+                <video id="tv-video-player" controls autoplay playsinline poster="ruta/a/imagen/negra.png"></video>
                 <div id="tv-current-channel-name">Cargando canales...</div>
             </div>
-            <div id="tv-channel-grid">
+
+            <div id="country-nav">
+                <button class="country-button active" data-country="MX" onclick="tv_filterChannels('MX')">México</button>
+                <button class="country-button" data-country="EC" onclick="tv_filterChannels('EC')">Ecuador</button>
+                <button class="country-button" data-country="ES" onclick="tv_filterChannels('ES')">España</button>
+                <button class="country-button" data-country="US" onclick="tv_filterChannels('US')">USA</button>
+                <button class="country-button premium" data-country="SPORTS" onclick="tv_filterChannels('SPORTS')">Deportes (Premium)</button>
+                <button class="country-button" data-country="ALL" onclick="tv_filterChannels('ALL')">Todos</button>
+            </div>
+
+            <div id="tv-content-container">
+                <div id="premium-wall" style="display:none;">
+                    <h3>¡Contenido Premium!</h3>
+                    <p>Para acceder a la sección de Deportes en Vivo y otros canales exclusivos, por favor, activa tu cuenta **Premium**.</p>
+                    <button class="premium-cta-btn" onclick="showSection('profile-screen')">Activar Premium ahora</button>
+                    <p class="tv-grid-item-info" style="margin-top: 15px; color:#aaa;">(Selecciona otra categoría si ya tienes Premium.)</p>
                 </div>
+                <div id="tv-channel-grid">
+                    </div>
+            </div>
         </div>
         <div id="profile-screen" class="screen">
             <div id="profile-logged-in" style="display: none;">
@@ -270,6 +349,7 @@
                 </div>
             </div>
         </div>
+
         <div id="favorites-screen" class="screen">
             <div class="screen-header">
                 <h2>Mis Favoritos</h2>
@@ -582,70 +662,83 @@
     <div id="loader"><div class="loader-spinner"></div><p>Cargando...</p></div>
 
     <script>
-        const tv_channels = [
-            { name: "8NTV", url: "https://60417ddeaf0d9.streamlock.net/ntv/videontv/playlist.m3u8", info: "1080p" },
-            { name: "15TV", url: "https://cdn.fastocloud.com/leonel.m3u8", info: "SD" },
-            { name: "15tv Sabinas", url: "https://hls.gvstream.live/telesistemas/15tv.stream/playlist.m3u8", info: "360p" },
-            { name: "ADN 40", url: "https://mdstrm.com/live-stream-playlist/60b578b060947317de7b57ac.m3u8", info: "720p" },
-            { name: "Afizzionados", url: "https://linear-348.frequency.stream/mt/studio/348/hls/master/playlist.m3u8", info: "576p" },
-            { name: "Alcance TV", url: "https://5bf8041cb3fed.streamlock.net/AlcanceTV/AlcanceTV/playlist.m3u8", info: "720p" },
-            { name: "Antena TV", url: "https://5ca9af4645e15.streamlock.net/grd/videogrd/playlist.m3u8", info: "1080p" },
-            { name: "Azteca Internacional", url: "https://azt-mun.otteravision.com/azt/mun/mun.m3u8", info: "1080p" },
-            { name: "B15", url: "https://60ed5b6d0df78.streamlock.net:1936/envio2/envio2/playlist.m3u8", info: "1080p" },
-            { name: "Bandamax", url: "https://linear-400.frequency.stream/mt/studio/400/hls/master/playlist.m3u8", info: "SD" },
-            { name: "bitMe", url: "https://linear-401.frequency.stream/mt/studio/401/hls/master/playlist.m3u8", info: "576p" },
-            { name: "Canal 5", url: "http://104.238.205.28:8989/278329_.m3u8", info: "720p" },
-            { name: "Canal 6 CDMX", url: "https://stitcher-ipv4.pluto.tv/v1/stitch/embed/hls/channel/652e91fd6208700008dcaf7blivestitch/master.m3u8", info: "SD" },
-            { name: "Canal 10 Chiapas", url: "https://5ca9af4645e15.streamlock.net/chiapas/videochiapas/playlist.m3u8", info: "720p" },
-            { name: "Canal Catorce", url: "https://s5.mexside.net:1936/canal14/canal14/playlist.m3u8", info: "720p" },
-            { name: "Canal del Congreso 45.3", url: "https://edgeplay.canaldelcongreso.gob.mx/live_hd1/smil:canal-hd1.smil/playlist.m3u8", info: "HD" },
-            { name: "Capital 21", url: "https://streamingc21.cdmx.gob.mx/capital21/stream.m3u8", info: "1080p" },
-            { name: "CorTV", url: "https://stream.oursnetworktv.com/latin/encoder29/playlist.m3u8", info: "800p" },
-            { name: "De Película", url: "https://linear-354.frequency.stream/mt/studio/354/hls/master/playlist.m3u8", info: "576p" },
-            { name: "Foro TV", url: "https://channel02-notusa.akamaized.net/hls/live/2023914/event01/index.m3u8", info: "1080p" },
-            { name: "Golden Plus", url: "https://linear-410.frequency.stream/dist/vix/410/hls/master/playlist.m3u8", info: "576p" },
-            { name: "Justicia TV", url: "https://live-scjn.ovp-vivaro.digital/ovp-origin/638a22b47746d/playlist.m3u8", info: "720p" },
-            { name: "Las Estrellas", url: "https://channel01-onlymex.akamaized.net/hls/live/2022749/event01/index.m3u8", info: "1080p" },
-            { name: "Milenio Television", url: "https://stitcher-ipv4.pluto.tv/v1/stitch/embed/hls/channel/652e922db4b047000825f975livestitch/master.m3u8", info: "SD" },
-            { name: "NMás", url: "https://channel07-notusa.akamaized.net/hls/live/2036971/event01/index.m3u8", info: "1080p" },
-            { name: "Once México", url: "https://vivo.canaloncelive.tv/alivepkgr3/ngrp:cepro_all/playlist.m3u8", info: "1080p" },
-            { name: "PSN", url: "https://srspsn.live/live/livestream.m3u8", info: "SD" },
-            { name: "RCG TV", url: "https://video1.getstreamhosting.com:1936/8172/8172/playlist.m3u8", info: "1080p" },
-            { name: "Sistema Michoacano", url: "https://60ed5b6d0df78.streamlock.net:1936/enlinea/enlinea/playlist.m3u8", info: "1080p" },
-            { name: "Telehit", url: "http://45.175.139.194:8000/play/62", info: "1080p" },
-            { name: "TUDN México", url: "http://190.61.102.67:2000/play/a08j/index.m3u8", info: "540p" },
-            { name: "TV BUAP", url: "https://tvenvivo.buap.mx/livestream/stream.m3u8", info: "1080p" },
-            { name: "UDG TV Canal 44", url: "https://d1sx1b16qowo88.cloudfront.net/out/v1/c278fcc434d1437eb31ff105c6b4a538/index.m3u8", info: "720p" },
-            { name: "ZAZ", url: "https://cloud.fastchannel.es/mic/manifiest/hls/zaztv/zaztv.m3u8", info: "SD" }
-        ];
+        // Simulación: Asume que el usuario NO es premium por defecto
+        let isPremiumUser = false; // Puedes cambiar esto si implementas un sistema de autenticación
 
+        // Estructura de canales por país (usando tu lista original de MX y ejemplos de otros)
+        const tv_channel_data = {
+            MX: [
+                { name: "ADN 40", url: "https://mdstrm.com/live-stream-playlist/60b578b060947317de7b57ac.m3u8", info: "720p" },
+                { name: "Azteca Internacional", url: "https://azt-mun.otteravision.com/azt/mun/mun.m3u8", info: "1080p" },
+                { name: "Canal 5", url: "http://104.238.205.28:8989/278329_.m3u8", info: "720p" },
+                { name: "Las Estrellas", url: "https://channel01-onlymex.akamaized.net/hls/live/2022749/event01/index.m3u8", info: "1080p" },
+                { name: "Once México", url: "https://vivo.canaloncelive.tv/alivepkgr3/ngrp:cepro_all/playlist.m3u8", info: "1080p" },
+                { name: "Foro TV", url: "https://channel02-notusa.akamaized.net/hls/live/2023914/event01/index.m3u8", info: "1080p" },
+                { name: "Canal 6 CDMX", url: "https://stitcher-ipv4.pluto.tv/v1/stitch/embed/hls/channel/652e91fd6208700008dcaf7blivestitch/master.m3u8", info: "SD" },
+                { name: "Capital 21", url: "https://streamingc21.cdmx.gob.mx/capital21/stream.m3u8", info: "1080p" },
+                { name: "Milenio Television", url: "https://stitcher-ipv4.pluto.tv/v1/stitch/embed/hls/channel/652e922db4b047000825f975livestitch/master.m3u8", info: "SD" },
+                { name: "NMás", url: "https://channel07-notusa.akamaized.net/hls/live/2036971/event01/index.m3u8", info: "1080p" },
+            ],
+            EC: [ // Canales de Ecuador (ejemplo)
+                { name: "Ecuador TV", url: "http://url-ficticia-ec-1/stream.m3u8", info: "720p" },
+                { name: "Teleamazonas", url: "http://url-ficticia-ec-2/stream.m3u8", info: "HD" },
+                { name: "RTS", url: "http://url-ficticia-ec-3/stream.m3u8", info: "SD" },
+            ],
+            ES: [ // Canales de España (ejemplo)
+                { name: "RTVE La 1", url: "http://url-ficticia-es-1/stream.m3u8", info: "HD" },
+                { name: "Antena 3", url: "http://url-ficticia-es-2/stream.m3u8", info: "SD" },
+            ],
+            US: [ // Canales de USA (ejemplo)
+                { name: "CBS News", url: "http://url-ficticia-us-1/stream.m3u8", info: "HD" },
+                { name: "ABC News Live", url: "http://url-ficticia-us-2/stream.m3u8", info: "HD" },
+            ],
+            SPORTS: [ // Canales Premium de Deportes (requiere Premium)
+                { name: "TUDN México", url: "http://190.61.102.67:2000/play/a08j/index.m3u8", info: "540p" },
+                { name: "Fox Sports 1", url: "http://url-ficticia-sports-2/stream.m3u8", info: "HD" },
+                { name: "ESPN Deportes", url: "http://url-ficticia-sports-3/stream.m3u8", info: "HD" },
+            ]
+        };
+
+        // Combina todos los canales para la opción "Todos"
+        const allChannels = [
+            ...tv_channel_data.MX,
+            ...tv_channel_data.EC,
+            ...tv_channel_data.ES,
+            ...tv_channel_data.US,
+            ...tv_channel_data.SPORTS
+        ];
+        tv_channel_data.ALL = allChannels;
+
+
+        // Variables y lógica de reproducción (Mantenida de la versión anterior)
         const tv_video = document.getElementById('tv-video-player');
         const tv_channel_grid = document.getElementById('tv-channel-grid');
         const tv_current_name = document.getElementById('tv-current-channel-name');
+        const premium_wall = document.getElementById('premium-wall');
         let tv_currentItem = null;
         let hls_instance = null;
 
-        function tv_loadChannel(item, index) {
-            const channel = tv_channels[index];
+        function tv_loadChannel(item, index, countryCode) {
+            const channel = tv_channel_data[countryCode][index];
             const url = channel.url;
             const name = channel.name;
             
-            tv_current_name.textContent = `Reproduciendo: ${name}`;
+            tv_current_name.textContent = `Reproduciendo: ${name} (${countryCode})`;
             
-            // 1. Manejo de la clase activa (borde rojo)
+            // 1. Manejo de la clase activa
             if (tv_currentItem) {
                 tv_currentItem.classList.remove('active');
             }
             item.classList.add('active');
             tv_currentItem = item;
 
-            // 2. Limpiar reproductor y crear nueva instancia HLS
+            // 2. Limpiar y reiniciar HLS
             if (hls_instance) {
                 hls_instance.destroy();
-                hls_instance = null; // Reiniciar
+                hls_instance = null;
             }
             
-            // 3. Cargar y reproducir el stream
+            // 3. Cargar y reproducir
             if (Hls.isSupported() && (url.endsWith('.m3u8') || url.includes('.m3u8'))) {
                 hls_instance = new Hls();
                 hls_instance.attachMedia(tv_video);
@@ -666,7 +759,6 @@
                 tv_video.src = url;
                 tv_video.addEventListener('loadedmetadata', function () { tv_video.play().catch(e => console.log("Error de auto-play nativo:", e)); });
             } else {
-                // Intento final para otros formatos o navegadores sin HLS
                 tv_video.src = url;
                 tv_video.play().catch(e => {
                     tv_current_name.textContent = `⚠️ ADVERTENCIA: Error al iniciar ${name} (URL no soportada)`;
@@ -674,11 +766,11 @@
             }
         }
         
-        function tv_renderChannelGrid() {
+        function tv_renderChannelGrid(channels, countryCode) {
             let htmlContent = '';
-            tv_channels.forEach((channel, index) => {
+            channels.forEach((channel, index) => {
                 htmlContent += `
-                    <div class="tv-grid-item" data-index="${index}" onclick="tv_loadChannel(this, ${index})">
+                    <div class="tv-grid-item" data-index="${index}" onclick="tv_loadChannel(this, ${index}, '${countryCode}')">
                         <div class="tv-grid-item-content">
                             <div class="tv-grid-item-title">${channel.name}</div>
                             <div class="tv-grid-item-info">${channel.info} | En vivo</div>
@@ -689,7 +781,44 @@
             tv_channel_grid.innerHTML = htmlContent;
         }
         
-        // Función de control de pestañas (Adaptada de tu lógica data-screen)
+        function tv_filterChannels(countryCode) {
+            // 1. Manejo de la botonera activa
+            document.querySelectorAll('#country-nav .country-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.country-button[data-country="${countryCode}"]`).classList.add('active');
+
+            // 2. Lógica de Muro Premium
+            if (countryCode === 'SPORTS' && !isPremiumUser) {
+                // Mostrar muro de pago y ocultar la cuadrícula
+                tv_channel_grid.style.display = 'none';
+                premium_wall.style.display = 'block';
+                tv_current_name.textContent = "¡Sección Premium!";
+                // Detener cualquier reproducción
+                if (hls_instance) hls_instance.destroy();
+                tv_video.src = '';
+
+                return; // Detiene la función aquí
+            } else {
+                // Ocultar muro de pago y mostrar la cuadrícula
+                premium_wall.style.display = 'none';
+                tv_channel_grid.style.display = 'grid';
+            }
+
+            // 3. Filtrar y renderizar canales
+            const filteredChannels = tv_channel_data[countryCode];
+            tv_renderChannelGrid(filteredChannels, countryCode);
+
+            // 4. Cargar el primer canal de la nueva lista
+            const firstChannel = document.querySelector('#tv-channel-grid .tv-grid-item');
+            if (firstChannel) {
+                tv_loadChannel(firstChannel, 0, countryCode);
+            } else {
+                tv_current_name.textContent = `No hay canales disponibles para ${countryCode}.`;
+                if (hls_instance) hls_instance.destroy();
+                tv_video.src = '';
+            }
+        }
+        
+        // [ ... Mantenemos la función handleScreenNavigation para que la navegación de pestañas funcione ... ]
         function handleScreenNavigation(screenId) {
             const screens = document.querySelectorAll('.screen');
             screens.forEach(screen => {
@@ -703,43 +832,38 @@
                 targetScreen.classList.add('active');
             }
 
-            // Lógica específica para la TV
+            // Lógica específica para la TV: Al entrar, activar el filtro por defecto (México)
             if (screenId === 'tv-live-screen') {
-                if (tv_channel_grid.children.length === 0) {
-                    tv_renderChannelGrid();
-                    const firstChannel = document.querySelector('.tv-grid-item');
-                    if (firstChannel) {
-                        tv_loadChannel(firstChannel, 0);
-                    }
+                if (tv_channel_grid.children.length === 0 || document.querySelector('#country-nav .country-button.active') === null) {
+                    tv_filterChannels('MX');
                 }
             }
         }
         
-        // Sobrescribir el listener de la navegación para incluir la lógica de la TV
+        // Inicialización
         document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
                 item.addEventListener('click', function(e) {
                     e.preventDefault();
                     
-                    // 1. Limpiar el estado activo de la navegación
                     document.querySelectorAll('.bottom-nav .nav-item').forEach(nav => nav.classList.remove('active'));
                     this.classList.add('active');
 
-                    // 2. Activar la nueva pantalla
                     const screenId = this.getAttribute('data-screen');
                     handleScreenNavigation(screenId);
                 });
             });
 
-            // Asegurar que al inicio se muestre la pantalla activa (o 'home-screen' por defecto)
             const activeNav = document.querySelector('.bottom-nav .nav-item.active');
             if (activeNav) {
                 const initialScreenId = activeNav.getAttribute('data-screen');
                 handleScreenNavigation(initialScreenId);
             } else {
-                 // Si no hay activa, intenta mostrar la de inicio o la que tu app define por defecto.
                  handleScreenNavigation('home-screen'); 
             }
+            
+            // Opcional: Para simular que la sección de TV está activa al cargar por primera vez
+            // tv_filterChannels('MX'); 
         });
     </script>
     <script type="module" src="script.js"></script>
