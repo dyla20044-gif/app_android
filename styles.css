@@ -971,32 +971,19 @@ body {
 }
 
 /* Nuevo Estilo para el flujo de registro */
-.profile-header {
-    background-color: var(--nav-bg);
+.profile-form-container {
     padding: 20px;
 }
 
-.profile-info-container {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-}
-
-.profile-info-item {
+.profile-avatar-selector {
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
 }
 
-.profile-avatar-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-}
-
-.profile-avatar-large {
+.profile-avatar-preview {
     width: 100px;
     height: 100px;
     border-radius: 50%;
@@ -1435,7 +1422,7 @@ body {
 .password-toggle {
     position: absolute;
     right: 20px;
-    top: 50%;
+    top: 50%
     transform: translateY(-50%);
     color: var(--input-placeholder);
     cursor: pointer;
@@ -1619,6 +1606,7 @@ body {
     border-radius: 20px;
     background-color: var(--input-bg);
     color: var(--text-color);
+    font-size: 1em;
 }
 #btn-post-comment {
     width: auto;
@@ -1775,8 +1763,6 @@ body {
     padding: 15px 20px;
     margin-bottom: 15px;
     background-color: var(--input-bg);
-    border: none;
-    border-radius: 8px;
     color: var(--text-color);
     font-size: 1em;
 }
@@ -1807,10 +1793,65 @@ body {
     padding: 15px 20px;
     margin-bottom: 15px;
     background-color: var(--input-bg);
-    border: none;
-    border-radius: 8px;
     color: var(--text-color);
     font-size: 1em;
 }
 
+/* BOTON DE DESCARGA: Mantenemos estilos genéricos si es necesario */
+#btn-open-download {
+    font-size: 1.5em; 
+}
 
+/* --- ESTILOS DE TV EN VIVO (CORREGIDO) --- */
+/* Contenedor de la nueva pantalla de TV */
+#tv-live-screen {
+    padding: 0;
+    /* Mantenemos el padding-bottom para el espacio de la barra inferior */
+    padding-bottom: 70px; 
+    background-color: #121212; 
+    /* IMPORTANTE: Las propiedades de 'display', 'flex-direction', 'height' y 'overflow' 
+       se han movido al selector '#tv-live-screen.active' para permitir que '.screen { display: none; }' la oculte. */
+}
+
+/* Regla CRÍTICA: Aplica el layout SÓLO cuando la pantalla está activa. */
+#tv-live-screen.active {
+    display: flex; 
+    flex-direction: column; 
+    height: 100%; 
+    overflow: hidden; 
+}
+
+#tv-player-container {
+    width: 100%;
+    /* Mantiene el aspecto 16:9, ideal para video en móvil */
+    aspect-ratio: 16 / 9; 
+    background-color: black;
+    position: relative;
+    /* MEJORA: Asegurar que no se encoja */
+    flex-shrink: 0;
+}
+
+
+/* Botonera de Países y Categorías */
+#country-nav {
+    display: flex;
+    overflow-x: scroll; /* Permite deslizar horizontalmente */
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 10px;
+    gap: 10px;
+    border-bottom: 1px solid #333;
+    background-color: #1E1E1E;
+    
+    /* FIX APLICADO: Agregamos un margen superior para separarlo del reproductor */
+    margin-top: 5px; 
+    /* MEJORA: Asegurar que no se encoja */
+    flex-shrink: 0;
+}
+
+/* MEJORA 1: Hacer el contenedor de contenido (que tiene la cuadrícula y el muro) deslizable */
+#tv-content-container {
+    flex-grow: 1; /* APLICADO: Ocupa todo el espacio restante */
+    overflow-y: auto; /* APLICADO: Habilitar el scroll solo aquí */
+    -webkit-overflow-scrolling: touch; /* APLICADO: Mejora el rendimiento del scroll en iOS */
+}
+/* --- FIN ESTILOS DE TV EN VIVO (CORREGIDO) --- */
