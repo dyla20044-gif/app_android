@@ -9,7 +9,7 @@ const firebaseConfig = {
     projectId: "app-aeff2",
     storageBucket: "app-aeff2.firebasestorage.app",
     messagingSenderId: "12229598213",
-    appId: "1:12229599999:web:80555d9d22c30b69ddd06c",
+    appId: "1:12229599999:web:80555d9999999999999",
     measurementId: "G-ZMQN0D6D4S"
 };
 
@@ -104,26 +104,24 @@ const historySection = document.getElementById('history-section');
 const searchFilters = document.getElementById('search-filters');
 const filterButtons = document.querySelectorAll('.filter-button');
 
-// --- Elementos del Rediseño de la Barra Superior y Social (REQs 1, 2, 3, 4) ---
+// --- Elementos de la Barra Superior y Social ---
 const btnToggleTheme = document.getElementById('btn-toggle-theme');
 const btnDownloadApp = document.getElementById('btn-download-app');
 const downloadAppModal = document.getElementById('download-app-modal');
 const btnOpenSearch = document.getElementById('btn-open-search');
 const searchOverlay = document.getElementById('search-overlay');
 const closeSearchButton = document.getElementById('close-search-button');
-const searchInput = document.getElementById('search-input'); // Usamos el input dentro del overlay
+const searchInput = document.getElementById('search-input'); 
 
-// ELEMENTOS SOCIALES REUBICADOS
-const viewCountDisplay = document.getElementById('view-count-display'); // Ahora en movie-metadata
-const likeCountDisplayText = document.getElementById('like-count-display-text'); // Contenedor de Like
-const favoriteButton = document.getElementById('favorite-button'); // Heart icon in movie-actions
+const viewCountDisplay = document.getElementById('view-count-display'); 
+const likeCountDisplayText = document.getElementById('like-count-display-text'); 
+const favoriteButton = document.getElementById('favorite-button'); 
 const commentInput = document.getElementById('comment-input');
 const btnPostComment = document.getElementById('btn-post-comment');
 const commentsFeed = document.getElementById('comments-feed');
 const noCommentsMessage = document.getElementById('no-comments-message');
-const relatedMoviesContainer = document.getElementById('related-movies'); // Contenedor de Similares
+const relatedMoviesContainer = document.getElementById('related-movies'); 
 
-// ELEMENTOS DE PESTAÑAS (TABS)
 const detailsTabsHeader = document.getElementById('details-tabs-header');
 const detailsTabsContent = document.getElementById('details-tabs-content');
 
@@ -137,14 +135,12 @@ let tv_currentItem = null;
 let hls_instance = null;
 
 
-// --- ELEMENTOS AGREGADOS PARA NUEVOS REQUERIMIENTOS ---
-// REQUERIMIENTO: Errores amigables
+// --- Variables de Estado Globales ---
 const loginMessage = document.getElementById('login-message');
 const signupMessage = document.getElementById('signup-message');
 const requestMessage = document.getElementById('request-message');
 const detailsRequestMessage = document.getElementById('details-request-message');
-// REQUERIMIENTO: Notificaciones y Eventos (SOLO CONSUMO)
-const btnOpenNotifications = document.getElementById('btn-open-avisos'); // El botón de la campana
+const btnOpenNotifications = document.getElementById('btn-open-avisos'); 
 const userNotificationsModal = document.getElementById('user-notifications-modal');
 const btnClearAllNotifications = document.getElementById('btn-clear-all-notifications');
 const notificationsClose = document.getElementById('notifications-close');
@@ -161,7 +157,7 @@ let resumeAutoScrollTimeout;
 // Hacemos 'currentUser' global para que la lógica de TV en index.html pueda acceder al estado .isPro
 let currentUser = null; 
 let currentMovieOrSeries = null;
-let currentFullTMDBItem = null; // Variable para guardar el objeto TMDB completo
+let currentFullTMDBItem = null; 
 let lastSearchResults = [];
 
 // ======================================================================
@@ -1166,6 +1162,7 @@ async function fetchHistory() {
             historySection.style.display = 'none';
         }
     } catch (e) {
+        // [Cita Firebase Error] Te aconsejo hacer clic en el enlace de la consola para crear el índice.
         console.error("Error al obtener el historial: ", e);
         historySection.style.display = 'none';
     }
@@ -1400,7 +1397,7 @@ function switchScreen(screenId) {
         document.getElementById('profile-screen').classList.add('active'); 
         searchFilters.style.display = 'none';
     }
-    // [MODIFICACIÓN CLAVE DE NAVEGACIÓN]
+    // [Lógica TV]
     else if (screenId === 'tv-live-screen') {
         // Lógica de inicialización de TV
         if (country_nav.children.length === 0) {
@@ -2115,6 +2112,7 @@ function tv_loadChannel(item, index, countryCode) {
     if (tv_currentItem) {
         tv_currentItem.classList.remove('active');
     }
+    // Usamos el evento del elemento clicado (que fue pasado por el onclick)
     const currentItem = document.querySelector(`.tv-grid-item[data-index="${index}"][data-country="${countryCode}"]`);
     if (currentItem) {
          currentItem.classList.add('active');
@@ -2126,6 +2124,7 @@ function tv_loadChannel(item, index, countryCode) {
         hls_instance = null;
     }
     
+    // Es CRÍTICO asegurar que window.Hls exista (se carga en index.html)
     if (window.Hls && Hls.isSupported() && (url.endsWith('.m3u8') || url.includes('.m3u8'))) {
         hls_instance = new Hls();
         hls_instance.attachMedia(tv_video);
@@ -2235,7 +2234,6 @@ function parseM3U(m3uContent, categoryName) {
 async function tv_filterChannels(countryCode) {
     // 1. Manejo de la botonera activa
     document.querySelectorAll('#country-nav .country-button').forEach(btn => btn.classList.remove('active'));
-    // Aseguramos que el botón exista antes de marcarlo como activo
     const activeButton = document.querySelector(`.country-button[data-country="${countryCode}"]`);
     if (activeButton) {
         activeButton.classList.add('active');
@@ -2277,7 +2275,6 @@ async function tv_filterChannels(countryCode) {
             console.error("Fallo al obtener o parsear el M3U:", error);
             tv_channel_grid.innerHTML = `<p style="color:#f00; text-align:center; padding-top:20px;">❌ Error al cargar canales de ${source.name}.</p>`;
             tv_current_name.textContent = `ERROR: No se pudo cargar ${source.name}.`;
-            // Detenemos el reproductor en caso de error
             if (hls_instance) hls_instance.destroy();
             tv_video.src = '';
             return;
@@ -2310,12 +2307,18 @@ function renderCountryButtons() {
         button.className = `country-button ${source.premium ? 'premium' : ''}`;
         button.textContent = source.name;
         button.setAttribute('data-country', code);
-        // La función global switchScreen fue movida a este archivo
+        // [CORRECCIÓN CLAVE] Usamos la función global tv_filterChannels
         button.onclick = () => tv_filterChannels(code); 
         country_nav.appendChild(button);
     }
 }
 
 // ======================================================================
-// FIN: LÓGICA DE TV EN VIVO (M3U)
+// [PASO CRÍTICO] HACER FUNCIONES DE TV GLOBALES PARA EL ONCLICK DEL HTML
 // ======================================================================
+window.tv_loadChannel = tv_loadChannel;
+window.tv_filterChannels = tv_filterChannels;
+// Aseguramos que el switchScreen también esté en el global, ya que es el controlador central
+window.switchScreen = switchScreen; 
+// Y la función para renderizar los botones, que es llamada por la navegación
+window.renderCountryButtons = renderCountryButtons;
